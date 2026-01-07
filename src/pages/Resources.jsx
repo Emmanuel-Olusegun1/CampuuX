@@ -3,7 +3,8 @@ import { Link } from 'react-router-dom';
 import { 
   FaSearch, FaUpload, FaTimes, FaBook, FaFileAlt, 
   FaFilter, FaArrowRight, FaQuestionCircle, FaGraduationCap,
-  FaUser, FaArrowLeft, FaGlobe, FaDownload, FaExternalLinkAlt
+  FaUser, FaArrowLeft, FaGlobe, FaDownload, FaExternalLinkAlt,
+  FaCalendar, FaTag
 } from 'react-icons/fa';
 import { supabase } from "../lib/supabase";
 import Navbar from '../components/Navbar';
@@ -41,6 +42,22 @@ function Resources() {
     { id: 'courses', name: 'Courses', icon: FaGraduationCap },
     { id: 'lecture_notes', name: 'Lecture Notes', icon: FaFileAlt }
   ];
+
+  // Category display names
+  const categoryNames = {
+    past_questions: 'Past Questions',
+    e_books: 'E-Books',
+    courses: 'Courses',
+    lecture_notes: 'Lecture Notes'
+  };
+
+  // Category colors
+  const categoryColors = {
+    past_questions: 'bg-blue-100 text-blue-800',
+    e_books: 'bg-purple-100 text-purple-800',
+    courses: 'bg-amber-100 text-amber-800',
+    lecture_notes: 'bg-emerald-100 text-emerald-800'
+  };
 
   // Fetch resources from Supabase
   useEffect(() => {
@@ -170,11 +187,21 @@ function Resources() {
     window.open(`https://docs.google.com/viewer?url=${encodeURIComponent(url)}&embedded=true`, '_blank');
   };
 
-  // Filter resources locally (fallback)
-  const filteredResources = resources.filter(item =>
-    (selectedCategory === 'all' || item.category === selectedCategory) &&
-    (searchQuery === '' || item.title.toLowerCase().includes(searchQuery.toLowerCase()))
-  );
+  // Format date
+  const formatDate = (dateString) => {
+    const date = new Date(dateString);
+    return date.toLocaleDateString('en-US', { 
+      month: 'short', 
+      day: 'numeric',
+      year: 'numeric'
+    });
+  };
+
+  // Truncate text
+  const truncateText = (text, maxLength = 100) => {
+    if (text.length <= maxLength) return text;
+    return text.substr(0, maxLength) + '...';
+  };
 
   return (
     <div className="min-h-screen bg-white">
@@ -465,74 +492,120 @@ function Resources() {
             </div>
           )}
 
-          {/* Resources List */}
+          {/* Resources Grid */}
           <div className="bg-white rounded-2xl shadow-lg p-4 md:p-6">
             {isLoading ? (
               <div className="flex justify-center py-12">
                 <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-green-500"></div>
               </div>
-            ) : (
-              <div className="space-y-3 md:space-y-4">
-                {filteredResources.length > 0 ? (
-                  filteredResources.map(item => (
-                    <div key={item.id} className="p-3 md:p-4 border rounded-lg hover:shadow-md transition-shadow">
-                      <div className="flex items-center">
-                        {item.category === 'past_questions' && <FaQuestionCircle className="text-green-600 mr-3 md:mr-4 w-4 h-4 md:w-5 md:h-5" />}
-                        {item.category === 'e_books' && <FaBook className="text-green-600 mr-3 md:mr-4 w-4 h-4 md:w-5 md:h-5" />}
-                        {item.category === 'courses' && <FaGraduationCap className="text-green-600 mr-3 md:mr-4 w-4 h-4 md:w-5 md:h-5" />}
-                        {item.category === 'lecture_notes' && <FaFileAlt className="text-green-600 mr-3 md:mr-4 w-4 h-4 md:w-5 md:h-5" />}
-                        <div className="flex-1 min-w-0">
-                          <h3 className="text-sm md:text-base font-medium truncate">{item.title}</h3>
-                          <p className="text-xs md:text-sm text-gray-600 line-clamp-2">{item.description}</p>
-                          <div className="flex items-center mt-1">
-                            <p className="text-xs text-gray-500">
-                              {item.uploaded_by ? `Shared by ${item.uploaded_by}` : 'Shared anonymously'}
-                            </p>
-                            <div className="flex space-x-2 ml-2">
-                              {item.file_name && (
-                                <button
-                                  onClick={() => openInViewer(item.url)}
-                                  className="text-xs md:text-sm text-green-600 hover:underline flex items-center"
-                                >
-                                  <FaDownload className="mr-1" /> View Document
-                                </button>
-                              )}
-                              {item.url && !item.file_name && (
-                                <a 
-                                  href={item.url} 
-                                  target="_blank" 
-                                  rel="noopener noreferrer"
-                                  className="text-xs md:text-sm text-green-600 hover:underline flex items-center"
-                                >
-                                  <FaExternalLinkAlt className="mr-1" /> View Resource
-                                </a>
-                              )}
-                              {item.file_name && item.url && (
-                                <a 
-                                  href={item.url} 
-                                  target="_blank" 
-                                  rel="noopener noreferrer"
-                                  className="text-xs md:text-sm text-green-600 hover:underline flex items-center"
-                                >
-                                  <FaExternalLinkAlt className="mr-1" /> Original URL
-                                </a>
-                              )}
-                            </div>
-                          </div>
+            ) : resources.length > 0 ? (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
+                {resources.map(item => (
+                  <div 
+                    key={item.id} 
+                    className="bg-white border border-gray-200 rounded-xl shadow-sm hover:shadow-md transition-all duration-300 overflow-hidden"
+                  >
+                    {/* Card Header with Category */}
+                    <div className={`px-4 py-3 ${categoryColors[item.category]} border-b`}>
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center">
+                          {item.category === 'past_questions' && <FaQuestionCircle className="mr-2" />}
+                          {item.category === 'e_books' && <FaBook className="mr-2" />}
+                          {item.category === 'courses' && <FaGraduationCap className="mr-2" />}
+                          {item.category === 'lecture_notes' && <FaFileAlt className="mr-2" />}
+                          <span className="text-xs font-semibold uppercase tracking-wide">
+                            {categoryNames[item.category]}
+                          </span>
                         </div>
+                        <span className="text-xs text-gray-600 flex items-center">
+                          <FaCalendar className="mr-1" />
+                          {formatDate(item.created_at)}
+                        </span>
                       </div>
                     </div>
-                  ))
-                ) : (
-                  <p className="text-center py-8 text-gray-500 text-sm md:text-base">
-                    No resources found. Be the first to share!
-                  </p>
-                )}
+
+                    {/* Card Body */}
+                    <div className="p-4 md:p-5">
+                      <h3 className="text-lg font-bold text-gray-900 mb-2 line-clamp-2">
+                        {item.title}
+                      </h3>
+                      <p className="text-gray-600 text-sm mb-4 line-clamp-3">
+                        {truncateText(item.description, 120)}
+                      </p>
+
+                      {/* Uploader Info */}
+                      <div className="flex items-center mb-4">
+                        <div className="flex items-center">
+                          <FaUser className="text-gray-400 mr-2" />
+                          <span className="text-sm text-gray-700">
+                            {item.uploaded_by || 'Anonymous'}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Action Buttons */}
+                      <div className="flex flex-wrap gap-2">
+                        {item.file_name && (
+                          <button
+                            onClick={() => openInViewer(item.url)}
+                            className="flex-1 flex items-center justify-center px-3 py-2 bg-green-50 text-green-700 hover:bg-green-100 rounded-lg text-sm font-medium transition-colors"
+                          >
+                            <FaDownload className="mr-2" />
+                            View
+                          </button>
+                        )}
+                        {item.url && !item.file_name && (
+                          <a 
+                            href={item.url} 
+                            target="_blank" 
+                            rel="noopener noreferrer"
+                            className="flex-1 flex items-center justify-center px-3 py-2 bg-blue-50 text-blue-700 hover:bg-blue-100 rounded-lg text-sm font-medium transition-colors"
+                          >
+                            <FaExternalLinkAlt className="mr-2" />
+                            Visit Link
+                          </a>
+                        )}
+                        {item.file_name && item.url && (
+                          <a 
+                            href={item.url} 
+                            target="_blank" 
+                            rel="noopener noreferrer"
+                            className="flex items-center justify-center px-3 py-2 bg-gray-100 text-gray-700 hover:bg-gray-200 rounded-lg text-sm font-medium transition-colors"
+                          >
+                            <FaExternalLinkAlt />
+                          </a>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-12">
+                <div className="mx-auto w-24 h-24 bg-gray-100 rounded-full flex items-center justify-center mb-4">
+                  <FaBook className="text-gray-400 text-3xl" />
+                </div>
+                <h3 className="text-xl font-semibold text-gray-700 mb-2">No resources found</h3>
+                <p className="text-gray-500 mb-6">
+                  {searchQuery || selectedCategory !== 'all' 
+                    ? 'Try adjusting your search or filter' 
+                    : 'Be the first to share a resource!'}
+                </p>
+                <Button
+                  onClick={() => {
+                    setIsShareOpen(true);
+                    setCurrentStep(1);
+                  }}
+                  className="bg-green-600 text-white hover:bg-green-700"
+                >
+                  Share Resource
+                </Button>
               </div>
             )}
           </div>
-{/* Improved "Can't Find What You Need?" Section */}
-<div className="bg-gradient-to-r from-green-600 to-green-800 rounded-2xl mt-4 p-8 md:p-10 text-center text-white">
+
+          {/* "Can't Find What You Need?" Section */}
+          <div className="bg-gradient-to-r from-green-600 to-green-800 rounded-2xl mt-8 p-8 md:p-10 text-center text-white">
             <div className="max-w-3xl mx-auto">
               <div className="flex justify-center mb-4">
                 <FaQuestionCircle className="text-white text-4xl" />

@@ -176,7 +176,7 @@ function Footer() {
           </div>
           
           <p className="text-gray-500 text-sm">
-            Designed and Developed by <a className="hover:text-green-500" target="_blank" rel="noopener noreferrer" href='https://algoritic.com.ng'>Algoritic Inc.</a>
+            Designed and Developed by <a className=" text-green-200 hover:text-green-500" target="_blank" rel="noopener noreferrer" href='#'>Dev Orizon</a>
           </p>
         </div>
       </div>
