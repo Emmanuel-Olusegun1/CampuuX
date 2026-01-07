@@ -1,11 +1,13 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { 
   FaSearch, FaUpload, FaBook, FaQuestionCircle, FaGraduationCap, 
   FaFilter, FaFileAlt, FaTimes, FaCalendarAlt, FaCheck,
   FaUser, FaExclamationCircle, FaCheckCircle, FaClock, FaThumbsUp,
-  FaShare, FaChevronUp, FaFire, FaThumbtack, FaCopy, FaSort,
-  FaExternalLinkAlt, FaEye, FaComment
+  FaShare, FaFire, FaCopy, FaSort, FaEye, FaStar, FaLightbulb,
+  FaRegHeart, FaHeart, FaRocket, FaUsers, FaChartLine, FaMagic,
+  FaPlus, FaList, FaBolt, FaArrowUp, FaSeedling, FaHandsHelping,
+  FaRegStar, FaRegBookmark, FaBookmark
 } from 'react-icons/fa';
 import { supabase } from '../lib/supabase';
 import Navbar from '../components/Navbar';
@@ -22,6 +24,7 @@ function Requests() {
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState(null);
   const [requests, setRequests] = useState([]);
+  const [viewMode, setViewMode] = useState('grid');
   const [formData, setFormData] = useState({
     title: '',
     description: '',
@@ -31,19 +34,18 @@ function Requests() {
 
   // Categories for requests
   const categories = [
-    { id: 'all', name: 'All', icon: FaFilter, color: 'gray' },
-    { id: 'past_questions', name: 'Past Questions', icon: FaQuestionCircle, color: 'green' },
-    { id: 'e_books', name: 'E-Books', icon: FaBook, color: 'purple' },
-    { id: 'courses', name: 'Courses', icon: FaGraduationCap, color: 'amber' },
-    { id: 'lecture_notes', name: 'Lecture Notes', icon: FaFileAlt, color: 'emerald' }
+    { id: 'all', name: 'All', icon: FaList, color: 'gray', bgColor: 'bg-gray-100' },
+    { id: 'past_questions', name: 'Past Questions', icon: FaQuestionCircle, color: 'emerald', bgColor: 'bg-emerald-100' },
+    { id: 'e_books', name: 'E-Books', icon: FaBook, color: 'violet', bgColor: 'bg-violet-100' },
+    { id: 'courses', name: 'Courses', icon: FaGraduationCap, color: 'amber', bgColor: 'bg-amber-100' },
+    { id: 'lecture_notes', name: 'Lecture Notes', icon: FaFileAlt, color: 'blue', bgColor: 'bg-blue-100' }
   ];
 
   // Status options
   const statusOptions = [
-    { id: 'all', name: 'All', color: 'gray' },
-    { id: 'pending', name: 'Pending', color: 'yellow' },
-    { id: 'in_progress', name: 'In Progress', color: 'green' },
-    { id: 'fulfilled', name: 'Fulfilled', color: 'green' }
+    { id: 'all', name: 'All', icon: FaList, color: 'gray' },
+    { id: 'pending', name: 'Pending', icon: FaClock, color: 'amber' },
+    { id: 'fulfilled', name: 'Fulfilled', icon: FaCheckCircle, color: 'emerald' }
   ];
 
   // Sort options
@@ -53,32 +55,19 @@ function Requests() {
     { id: 'upvotes', name: 'Most Upvotes', icon: FaThumbsUp }
   ];
 
-  // Category colors and icons
-  const categoryColors = {
-    past_questions: 'bg-green-50 text-green-700 border-green-200',
-    e_books: 'bg-purple-50 text-purple-700 border-purple-200',
-    courses: 'bg-amber-50 text-amber-700 border-amber-200',
-    lecture_notes: 'bg-emerald-50 text-emerald-700 border-emerald-200'
+  // Category icons and colors
+  const categoryInfo = {
+    past_questions: { icon: FaQuestionCircle, color: 'text-emerald-600', bg: 'bg-emerald-50', border: 'border-emerald-200' },
+    e_books: { icon: FaBook, color: 'text-violet-600', bg: 'bg-violet-50', border: 'border-violet-200' },
+    courses: { icon: FaGraduationCap, color: 'text-amber-600', bg: 'bg-amber-50', border: 'border-amber-200' },
+    lecture_notes: { icon: FaFileAlt, color: 'text-blue-600', bg: 'bg-blue-50', border: 'border-blue-200' }
   };
 
-  const categoryIcons = {
-    past_questions: FaQuestionCircle,
-    e_books: FaBook,
-    courses: FaGraduationCap,
-    lecture_notes: FaFileAlt
-  };
-
-  // Status colors and icons
-  const statusColors = {
-    pending: 'bg-yellow-50 text-yellow-700 border-yellow-200',
-    fulfilled: 'bg-green-50 text-green-700 border-green-200',
-    in_progress: 'bg-green-50 text-green-700 border-green-200'
-  };
-
-  const statusIcons = {
-    pending: FaClock,
-    fulfilled: FaCheckCircle,
-    in_progress: FaExclamationCircle
+  // Status icons and colors
+  const statusInfo = {
+    pending: { icon: FaClock, color: 'text-amber-600', bg: 'bg-amber-50', border: 'border-amber-200' },
+    fulfilled: { icon: FaCheckCircle, color: 'text-emerald-600', bg: 'bg-emerald-50', border: 'border-emerald-200' },
+    in_progress: { icon: FaBolt, color: 'text-blue-600', bg: 'bg-blue-50', border: 'border-blue-200' }
   };
 
   // Fetch requests from Supabase
@@ -86,15 +75,11 @@ function Requests() {
     fetchRequests();
   }, [searchQuery, selectedCategory, selectedStatus, sortBy]);
 
-  // Fetch requests from Supabase
   const fetchRequests = async () => {
     try {
       setIsLoading(true);
-      let query = supabase
-        .from('requests')
-        .select('*');
+      let query = supabase.from('requests').select('*');
 
-      // Apply filters
       if (selectedCategory !== 'all') {
         query = query.eq('category', selectedCategory);
       }
@@ -107,7 +92,6 @@ function Requests() {
         query = query.or(`title.ilike.%${searchQuery}%,description.ilike.%${searchQuery}%`);
       }
 
-      // Apply sorting
       switch (sortBy) {
         case 'newest':
           query = query.order('created_at', { ascending: false });
@@ -121,7 +105,6 @@ function Requests() {
       }
 
       const { data, error } = await query;
-
       if (error) throw error;
       setRequests(data || []);
     } catch (err) {
@@ -140,7 +123,6 @@ function Requests() {
     setSuccess(null);
 
     try {
-      // Prepare request data
       const requestData = {
         title: formData.title,
         description: formData.description,
@@ -151,17 +133,11 @@ function Requests() {
         created_at: new Date().toISOString()
       };
 
-      // Insert into requests table
-      const { error } = await supabase
-        .from('requests')
-        .insert([requestData]);
-
+      const { error } = await supabase.from('requests').insert([requestData]);
       if (error) throw error;
 
-      // Refresh requests list
       await fetchRequests();
       
-      // Reset form
       setFormData({
         title: '',
         description: '',
@@ -173,46 +149,42 @@ function Requests() {
       setTimeout(() => setSuccess(null), 3000);
 
     } catch (err) {
-      setError(err.message || 'Failed to submit request');
+      setError('Failed to submit request');
       setTimeout(() => setError(null), 5000);
     } finally {
       setIsLoading(false);
     }
   };
 
-  // Handle upvote (no authentication required)
+  // Handle upvote
   const handleUpvote = async (requestId, currentUpvotes) => {
     try {
-      // Get existing upvotes from localStorage
       const upvotedRequests = JSON.parse(localStorage.getItem('upvotedRequests') || '[]');
       
-      // Check if already upvoted
       if (upvotedRequests.includes(requestId)) {
-        // Remove upvote
-        const newUpvotes = currentUpvotes - 1;
+        const newUpvotes = Math.max(0, currentUpvotes - 1);
         await supabase
           .from('requests')
           .update({ upvotes: newUpvotes })
           .eq('id', requestId);
 
-        // Remove from localStorage
         const updatedVotes = upvotedRequests.filter(id => id !== requestId);
         localStorage.setItem('upvotedRequests', JSON.stringify(updatedVotes));
+        setSuccess('👍 Upvote removed');
       } else {
-        // Add upvote
         const newUpvotes = currentUpvotes + 1;
         await supabase
           .from('requests')
           .update({ upvotes: newUpvotes })
           .eq('id', requestId);
 
-        // Add to localStorage
         upvotedRequests.push(requestId);
         localStorage.setItem('upvotedRequests', JSON.stringify(upvotedRequests));
+        setSuccess('🚀 Upvoted successfully!');
       }
 
-      // Refresh requests
       await fetchRequests();
+      setTimeout(() => setSuccess(null), 2000);
 
     } catch (err) {
       setError('Failed to upvote');
@@ -220,11 +192,12 @@ function Requests() {
     }
   };
 
-  // Handle fulfill request (no authentication required)
+  // Handle fulfill request
   const handleFulfillRequest = async (requestId) => {
+    if (!window.confirm('Mark this request as fulfilled?')) return;
+
     try {
-      // Mark request as fulfilled
-      const { error } = await supabase
+      await supabase
         .from('requests')
         .update({ 
           status: 'fulfilled',
@@ -232,16 +205,12 @@ function Requests() {
         })
         .eq('id', requestId);
 
-      if (error) throw error;
-
-      // Refresh requests
       await fetchRequests();
-      
       setSuccess('✅ Request marked as fulfilled!');
       setTimeout(() => setSuccess(null), 3000);
 
     } catch (err) {
-      setError('Failed to mark as fulfilled');
+      setError('Failed to fulfill request');
       setTimeout(() => setError(null), 3000);
     }
   };
@@ -249,19 +218,18 @@ function Requests() {
   // Handle share request
   const handleShareRequest = async (request) => {
     try {
-      const shareText = `Check out this resource request: "${request.title}"\n\n${request.description?.substring(0, 100)}...`;
+      const shareText = `📚 Academic Resource Request: "${request.title}"`;
       const shareUrl = `${window.location.origin}/requests`;
       
       if (navigator.share) {
         await navigator.share({
-          title: `Request: ${request.title}`,
+          title: `Help with: ${request.title}`,
           text: shareText,
           url: shareUrl,
         });
         setSuccess('📤 Shared successfully!');
       } else {
-        // Fallback: copy to clipboard
-        await navigator.clipboard.writeText(`${shareText}\n\nView at: ${shareUrl}`);
+        await navigator.clipboard.writeText(`${shareText}\n\n🔗 ${shareUrl}`);
         setSuccess('📋 Link copied to clipboard!');
       }
       
@@ -277,11 +245,11 @@ function Requests() {
   const handleCopyLink = async (requestId) => {
     const link = `${window.location.origin}/requests#request-${requestId}`;
     await navigator.clipboard.writeText(link);
-    setSuccess('🔗 Link copied to clipboard!');
+    setSuccess('🔗 Link copied!');
     setTimeout(() => setSuccess(null), 2000);
   };
 
-  // Check if request is upvoted (from localStorage)
+  // Check if request is upvoted
   const isRequestUpvoted = (requestId) => {
     const upvotedRequests = JSON.parse(localStorage.getItem('upvotedRequests') || '[]');
     return upvotedRequests.includes(requestId);
@@ -289,20 +257,7 @@ function Requests() {
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
-    setFormData(prev => ({
-      ...prev,
-      [name]: value
-    }));
-  };
-
-  // Format date for display
-  const formatDate = (dateString) => {
-    const date = new Date(dateString);
-    return date.toLocaleDateString('en-US', { 
-      month: 'short', 
-      day: 'numeric',
-      year: 'numeric'
-    });
+    setFormData(prev => ({ ...prev, [name]: value }));
   };
 
   // Format relative time
@@ -318,7 +273,7 @@ function Requests() {
     if (diffMins < 60) return `${diffMins}m ago`;
     if (diffHours < 24) return `${diffHours}h ago`;
     if (diffDays < 7) return `${diffDays}d ago`;
-    return formatDate(dateString);
+    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
   };
 
   // Truncate text
@@ -337,26 +292,25 @@ function Requests() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-gray-50 to-white">
+    <div className="min-h-screen bg-gradient-to-b from-gray-50 via-emerald-50/20 to-white">
       <Navbar />
       
-      {/* Success Toast */}
+      {/* Toast Notifications */}
       {success && (
         <div className="fixed top-20 left-1/2 transform -translate-x-1/2 z-50 animate-slideDown">
-          <div className="bg-green-500 text-white px-6 py-3 rounded-lg shadow-lg flex items-center space-x-2">
-            <FaCheckCircle />
-            <span>{success}</span>
+          <div className="bg-gradient-to-r from-emerald-500 to-green-600 text-white px-6 py-3 rounded-xl shadow-xl flex items-center space-x-3 backdrop-blur-sm bg-opacity-90">
+            <FaStar className="animate-pulse" />
+            <span className="font-medium">{success}</span>
           </div>
         </div>
       )}
 
-      {/* Error Toast */}
       {error && (
         <div className="fixed top-20 left-1/2 transform -translate-x-1/2 z-50 animate-slideDown">
-          <div className="bg-red-500 text-white px-6 py-3 rounded-lg shadow-lg flex items-center space-x-2">
+          <div className="bg-gradient-to-r from-red-500 to-pink-600 text-white px-6 py-3 rounded-xl shadow-xl flex items-center space-x-3 backdrop-blur-sm bg-opacity-90">
             <FaExclamationCircle />
-            <span>{error}</span>
-            <button onClick={() => setError(null)} className="ml-4">
+            <span className="font-medium">{error}</span>
+            <button onClick={() => setError(null)} className="ml-4 hover:opacity-80">
               <FaTimes />
             </button>
           </div>
@@ -366,175 +320,214 @@ function Requests() {
       <main className="py-8 md:py-12">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           {/* Hero Section */}
-          <div className="bg-gradient-to-r from-green-500 to-emerald-600 rounded-2xl p-6 md:p-8 text-white mb-8 shadow-lg">
-            <div className="flex flex-col md:flex-row items-center justify-between">
-              <div className="mb-6 md:mb-0">
-                <h1 className="text-3xl md:text-4xl font-bold mb-2">Resource Requests</h1>
-                <p className="text-lg text-green-100 opacity-90">
-                  Need academic materials? Request them here from the community. No login required!
-                </p>
-              </div>
-              <div className="flex items-center space-x-2 text-sm">
-                <span className="bg-white/20 px-3 py-1 rounded-full">
-                  {requests.length} total requests
-                </span>
-                <span className="bg-white/20 px-3 py-1 rounded-full">
-                  {requests.filter(r => r.status === 'fulfilled').length} fulfilled
-                </span>
+          <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-emerald-500 via-green-500 to-teal-600 p-8 md:p-12 text-white mb-8 shadow-2xl">
+            
+            <div className="relative z-10">
+              <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-8">
+                <div>
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className="p-3 bg-white/20 rounded-2xl backdrop-blur-sm">
+                      <FaHandsHelping className="text-2xl" />
+                    </div>
+                    <h1 className="text-3xl md:text-4xl font-bold">Community Requests</h1>
+                  </div>
+                  <p className="text-xl text-emerald-100 max-w-2xl mb-6">
+                    Need academic materials? Request them from the community. Together, we build knowledge.
+                  </p>
+                  <div className="flex flex-wrap gap-3">
+                    <div className="bg-white/20 backdrop-blur-sm px-4 py-2 rounded-full flex items-center gap-2">
+                      <FaUsers />
+                      <span>Community-Powered</span>
+                    </div>
+                    <div className="bg-white/20 backdrop-blur-sm px-4 py-2 rounded-full flex items-center gap-2">
+                      <FaSeedling />
+                      <span>Growing Together</span>
+                    </div>
+                  </div>
+                </div>
+                <div className="flex flex-col items-center space-y-4">
+                  <div className="text-center">
+                    <div className="text-5xl font-bold">{requests.length}</div>
+                    <div className="text-emerald-100">Total Requests</div>
+                  </div>
+                  <Button
+                    onClick={() => document.getElementById('request-form')?.scrollIntoView({ 
+                      behavior: 'smooth',
+                      block: 'start'
+                    })}
+                    className="px-8 py-4 bg-white text-emerald-600 hover:bg-emerald-50 font-bold rounded-xl shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 transition-all duration-300"
+                  >
+                    <span className='flex items-center cursor-pointer'>
+                    <FaUpload className="mr-2" />
+                    Make a Request
+                    </span>
+                  </Button>
+                </div>
               </div>
             </div>
           </div>
 
-          {/* Search and Filters Bar */}
-          <div className="bg-white rounded-2xl shadow-lg p-5 mb-6">
-            <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
-              {/* Search Bar */}
-              <div className="relative flex-1">
+          {/* Search and Controls */}
+          <div className="bg-white rounded-2xl shadow-lg p-6 mb-8 border border-gray-100">
+            <div className="flex flex-col lg:flex-row gap-4 mb-6">
+              <div className="flex-1 relative">
                 <FaSearch className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400" />
                 <input
                   type="text"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   placeholder="Search requests by title or description..."
-                  className="w-full pl-12 pr-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                  className="w-full pl-12 pr-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 transition-all duration-300"
                 />
               </div>
+            </div>
 
-              {/* Filter Buttons */}
+            {/* Quick Filters */}
+            <div className="space-y-4">
               <div className="flex flex-wrap gap-2">
-                {/* Category Filter */}
-                <div className="relative group">
-                  <button className="flex items-center gap-2 px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg text-sm font-medium transition-colors">
-                    <FaFilter />
-                    <span>Category</span>
-                    <FaChevronUp className="text-xs" />
-                  </button>
-                  <div className="absolute hidden group-hover:block mt-1 bg-white shadow-lg rounded-lg p-2 min-w-[200px] z-10">
-                    {categories.map(category => (
-                      <button
-                        key={category.id}
-                        onClick={() => setSelectedCategory(category.id)}
-                        className={`w-full text-left px-3 py-2 rounded text-sm ${
-                          selectedCategory === category.id
-                            ? 'bg-green-50 text-green-700'
-                            : 'hover:bg-gray-50'
-                        }`}
-                      >
-                        {category.name}
-                      </button>
-                    ))}
-                  </div>
-                </div>
+                {categories.map(cat => {
+                  const Icon = cat.icon;
+                  const isActive = selectedCategory === cat.id;
+                  return (
+                    <button
+                      key={cat.id}
+                      onClick={() => setSelectedCategory(cat.id)}
+                      className={`flex items-center gap-2 px-4 py-2 rounded-xl transition-all duration-300 ${
+                        isActive
+                          ? `bg-gradient-to-r from-${cat.color}-100 to-${cat.color}-50 text-${cat.color}-700 border border-${cat.color}-200 shadow-sm`
+                          : 'bg-gray-100 hover:bg-gray-200 text-gray-700'
+                      }`}
+                    >
+                      <Icon />
+                      <span>{cat.name}</span>
+                    </button>
+                  );
+                })}
+              </div>
 
-                {/* Status Filter */}
-                <div className="relative group">
-                  <button className="flex items-center gap-2 px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg text-sm font-medium transition-colors">
-                    <FaCheckCircle />
-                    <span>Status</span>
-                    <FaChevronUp className="text-xs" />
-                  </button>
-                  <div className="absolute hidden group-hover:block mt-1 bg-white shadow-lg rounded-lg p-2 min-w-[150px] z-10">
-                    {statusOptions.map(status => (
+              <div className="flex flex-wrap items-center gap-4">
+                <div className="flex items-center gap-2">
+                  <FaFilter className="text-gray-500" />
+                  <span className="text-sm text-gray-600">Status:</span>
+                  {statusOptions.map(status => {
+                    const Icon = status.icon;
+                    const isActive = selectedStatus === status.id;
+                    return (
                       <button
                         key={status.id}
                         onClick={() => setSelectedStatus(status.id)}
-                        className={`w-full text-left px-3 py-2 rounded text-sm ${
-                          selectedStatus === status.id
-                            ? 'bg-green-50 text-green-700'
-                            : 'hover:bg-gray-50'
+                        className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm transition-all ${
+                          isActive
+                            ? `bg-${status.color}-100 text-${status.color}-700`
+                            : 'hover:bg-gray-100 text-gray-600'
                         }`}
                       >
-                        {status.name}
+                        <Icon />
+                        <span>{status.name}</span>
                       </button>
-                    ))}
-                  </div>
+                    );
+                  })}
                 </div>
 
-                {/* Sort Filter */}
-                <div className="relative group">
-                  <button className="flex items-center gap-2 px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg text-sm font-medium transition-colors">
-                    <FaSort />
-                    <span>Sort</span>
-                    <FaChevronUp className="text-xs" />
-                  </button>
-                  <div className="absolute hidden group-hover:block mt-1 bg-white shadow-lg rounded-lg p-2 min-w-[150px] z-10">
-                    {sortOptions.map(option => {
-                      const Icon = option.icon;
-                      return (
-                        <button
-                          key={option.id}
-                          onClick={() => setSortBy(option.id)}
-                          className={`w-full flex items-center gap-2 px-3 py-2 rounded text-sm ${
-                            sortBy === option.id
-                              ? 'bg-green-50 text-green-700'
-                              : 'hover:bg-gray-50'
-                          }`}
-                        >
-                          <Icon />
-                          {option.name}
-                        </button>
-                      );
-                    })}
-                  </div>
+                <div className="flex items-center gap-2">
+                  <FaSort className="text-gray-500" />
+                  <span className="text-sm text-gray-600">Sort:</span>
+                  {sortOptions.map(option => {
+                    const Icon = option.icon;
+                    const isActive = sortBy === option.id;
+                    return (
+                      <button
+                        key={option.id}
+                        onClick={() => setSortBy(option.id)}
+                        className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm transition-all ${
+                          isActive
+                            ? 'bg-emerald-100 text-emerald-700'
+                            : 'hover:bg-gray-100 text-gray-600'
+                        }`}
+                      >
+                        <Icon />
+                        <span>{option.name}</span>
+                      </button>
+                    );
+                  })}
                 </div>
 
-                {/* Clear Filters Button */}
                 {(searchQuery || selectedCategory !== 'all' || selectedStatus !== 'all') && (
                   <button
                     onClick={clearFilters}
-                    className="px-4 py-2 text-red-600 hover:bg-red-50 rounded-lg text-sm font-medium transition-colors"
+                    className="ml-auto flex items-center gap-2 px-4 py-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
                   >
-                    Clear Filters
+                    <FaTimes />
+                    <span>Clear Filters</span>
                   </button>
                 )}
               </div>
             </div>
-
-            {/* Active Filters Display */}
-            <div className="flex flex-wrap gap-2 mt-4">
-              {selectedCategory !== 'all' && (
-                <span className="inline-flex items-center px-3 py-1 rounded-full text-xs bg-green-100 text-green-700">
-                  Category: {categories.find(c => c.id === selectedCategory)?.name}
-                  <button onClick={() => setSelectedCategory('all')} className="ml-1">
-                    <FaTimes className="text-xs" />
-                  </button>
-                </span>
-              )}
-              {selectedStatus !== 'all' && (
-                <span className="inline-flex items-center px-3 py-1 rounded-full text-xs bg-green-100 text-green-700">
-                  Status: {statusOptions.find(s => s.id === selectedStatus)?.name}
-                  <button onClick={() => setSelectedStatus('all')} className="ml-1">
-                    <FaTimes className="text-xs" />
-                  </button>
-                </span>
-              )}
-              {searchQuery && (
-                <span className="inline-flex items-center px-3 py-1 rounded-full text-xs bg-gray-100 text-gray-700">
-                  Search: "{searchQuery}"
-                  <button onClick={() => setSearchQuery('')} className="ml-1">
-                    <FaTimes className="text-xs" />
-                  </button>
-                </span>
-              )}
-            </div>
           </div>
 
+          {/* Stats */}
+          {requests.length > 0 && (
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+              {[
+                { 
+                  value: requests.length, 
+                  label: 'Total Requests', 
+                  icon: FaList,
+                  color: 'text-emerald-600',
+                  bg: 'bg-gradient-to-br from-emerald-50 to-green-50'
+                },
+                { 
+                  value: requests.filter(r => r.status === 'fulfilled').length, 
+                  label: 'Fulfilled', 
+                  icon: FaCheckCircle,
+                  color: 'text-green-600',
+                  bg: 'bg-gradient-to-br from-green-50 to-emerald-50'
+                },
+                { 
+                  value: requests.reduce((sum, req) => sum + (req.upvotes || 0), 0), 
+                  label: 'Total Upvotes', 
+                  icon: FaThumbsUp,
+                  color: 'text-amber-600',
+                  bg: 'bg-gradient-to-br from-amber-50 to-yellow-50'
+                },
+                { 
+                  value: `${Math.round(requests.filter(r => r.status === 'fulfilled').length / Math.max(requests.length, 1) * 100)}%`, 
+                  label: 'Success Rate', 
+                  icon: FaChartLine,
+                  color: 'text-blue-600',
+                  bg: 'bg-gradient-to-br from-blue-50 to-cyan-50'
+                }
+              ].map((stat, index) => {
+                const Icon = stat.icon;
+                return (
+                  <div key={index} className={`${stat.bg} rounded-2xl p-6 shadow-sm border border-gray-100 transform hover:-translate-y-1 transition-transform duration-300`}>
+                    <div className="flex items-center justify-between mb-2">
+                      <Icon className={`text-2xl ${stat.color}`} />
+                      <div className="text-3xl font-bold">{stat.value}</div>
+                    </div>
+                    <div className="text-gray-700 font-semibold">{stat.label}</div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
           {/* Request Form */}
-          <div className="bg-white rounded-2xl shadow-lg p-6 mb-8 border border-gray-100">
-            <div className="flex items-center gap-3 mb-6">
-              <div className="p-3 bg-green-100 rounded-xl">
-                <FaUpload className="text-green-600 text-xl" />
+          <div id="request-form" className="bg-white rounded-2xl shadow-lg p-8 mb-8 border border-gray-100">
+            <div className="flex items-center gap-4 mb-6">
+              <div className="p-3 bg-gradient-to-r from-emerald-100 to-green-100 rounded-2xl">
+                <FaUpload className="text-2xl text-emerald-600" />
               </div>
               <div>
-                <h2 className="text-xl font-bold text-gray-900">Make a Request</h2>
-                <p className="text-gray-600 text-sm">What academic resource do you need? No login required.</p>
+                <h2 className="text-2xl font-bold text-gray-900">Make a Request</h2>
+                <p className="text-gray-600">What academic resource do you need? Let the community help.</p>
               </div>
             </div>
 
-            <form onSubmit={handleSubmit} className="space-y-5">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+            <form onSubmit={handleSubmit} className="space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">
                     Title <span className="text-red-500">*</span>
                   </label>
                   <input
@@ -543,45 +536,45 @@ function Requests() {
                     value={formData.title}
                     onChange={handleInputChange}
                     placeholder="e.g., CS101 Past Questions 2023"
-                    className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 transition-all duration-300"
                     required
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">
                     Category <span className="text-red-500">*</span>
                   </label>
                   <select
                     name="category"
                     value={formData.category}
                     onChange={handleInputChange}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 transition-all duration-300 bg-white"
                     required
                   >
-                    {categories.filter(c => c.id !== 'all').map(category => (
-                      <option key={category.id} value={category.id}>{category.name}</option>
+                    {categories.filter(c => c.id !== 'all').map(cat => (
+                      <option key={cat.id} value={cat.id}>{cat.name}</option>
                     ))}
                   </select>
                 </div>
               </div>
               
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-sm font-semibold text-gray-700 mb-2">
                   Description <span className="text-red-500">*</span>
                 </label>
                 <textarea
                   name="description"
                   value={formData.description}
                   onChange={handleInputChange}
-                  placeholder="Describe what you're looking for in detail. Be specific about course code, year, author, etc."
+                  placeholder="Describe what you're looking for in detail. Include course code, year, specific topics, etc."
                   rows="4"
-                  className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 transition-all duration-300 resize-none"
                   required
                 />
               </div>
               
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-sm font-semibold text-gray-700 mb-2">
                   Your Name (Optional)
                 </label>
                 <input
@@ -590,15 +583,15 @@ function Requests() {
                   value={formData.requested_by_text}
                   onChange={handleInputChange}
                   placeholder="How you want to be credited. Leave blank for anonymous."
-                  className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 transition-all duration-300"
                 />
               </div>
               
-              <div className="flex justify-end pt-2">
+              <div className="flex justify-end">
                 <Button
                   type="submit"
                   disabled={isLoading || !formData.title || !formData.description}
-                  className="px-8 py-3 bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-xl hover:shadow-lg transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="px-8 py-3 bg-gradient-to-r from-emerald-500 to-green-600 hover:from-emerald-600 hover:to-green-700 text-white rounded-xl hover:shadow-lg transform hover:-translate-y-0.5 transition-all duration-300 disabled:opacity-50"
                 >
                   {isLoading ? (
                     <span className="flex items-center gap-2">
@@ -606,30 +599,28 @@ function Requests() {
                       Submitting...
                     </span>
                   ) : (
-                    'Submit Request'
+                    <span className="flex items-center">
+                      <FaRocket className="mr-2" />
+                      Submit Request
+                    </span>
                   )}
                 </Button>
               </div>
             </form>
           </div>
 
-          {/* Requests Grid */}
-          <div id="requests-grid" className="bg-white rounded-2xl shadow-lg p-6">
+          {/* Requests Display */}
+          <div className="bg-white rounded-2xl shadow-lg p-6 border border-gray-100">
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
               <div>
-                <h2 className="text-xl font-bold text-gray-900">Recent Requests</h2>
-                <p className="text-gray-600 text-sm mt-1">
-                  Showing {requests.length} request{requests.length !== 1 ? 's' : ''}
-                  {selectedCategory !== 'all' && ` in ${categories.find(c => c.id === selectedCategory)?.name}`}
-                  {selectedStatus !== 'all' && ` • ${statusOptions.find(s => s.id === selectedStatus)?.name}`}
+                <h2 className="text-2xl font-bold text-gray-900">Community Requests</h2>
+                <p className="text-gray-600">
+                  {requests.length === 0 ? 'No requests yet' : 
+                   `Browse ${requests.length} request${requests.length !== 1 ? 's' : ''} from the community`}
                 </p>
               </div>
               <div className="flex items-center gap-3">
-                <div className="hidden sm:flex items-center gap-2 text-sm text-gray-600">
-                  <FaThumbsUp className="text-green-500" />
-                  <span>{requests.reduce((sum, req) => sum + (req.upvotes || 0), 0)} total upvotes</span>
-                </div>
-                <div className="text-sm text-gray-500">
+                <div className="text-sm text-gray-500 bg-gray-100 px-4 py-2 rounded-lg">
                   Sorted by {sortOptions.find(s => s.id === sortBy)?.name.toLowerCase()}
                 </div>
               </div>
@@ -637,104 +628,109 @@ function Requests() {
             
             {isLoading ? (
               <div className="flex flex-col items-center justify-center py-16">
-                <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-green-500 mb-4"></div>
+                <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-emerald-500 mb-4"></div>
                 <p className="text-gray-600">Loading requests...</p>
               </div>
             ) : requests.length > 0 ? (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+              <div className={`${viewMode === 'grid' ? 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6' : 'space-y-6'}`}>
                 {requests.map(item => {
-                  const CategoryIcon = categoryIcons[item.category] || FaQuestionCircle;
-                  const StatusIcon = statusIcons[item.status] || FaClock;
+                  const catInfo = categoryInfo[item.category] || categoryInfo.past_questions;
+                  const CategoryIcon = catInfo.icon;
+                  const statusInfoItem = statusInfo[item.status] || statusInfo.pending;
+                  const StatusIcon = statusInfoItem.icon;
                   const hasUpvoted = isRequestUpvoted(item.id);
                   
                   return (
                     <div 
                       key={item.id} 
-                      className="bg-white border border-gray-200 rounded-xl p-5 hover:border-green-300 hover:shadow-md transition-all duration-300 flex flex-col h-full"
+                      className={`bg-gradient-to-br from-white to-gray-50 border-2 border-gray-100 rounded-2xl p-6 hover:border-emerald-200 hover:shadow-xl transition-all duration-500 group ${
+                        viewMode === 'list' ? 'flex items-start gap-6' : ''
+                      }`}
                     >
                       {/* Card Header */}
                       <div className="flex justify-between items-start mb-4">
-                        <div className="flex items-center gap-2">
-                          <div className={`p-2 rounded-lg ${categoryColors[item.category]}`}>
-                            <CategoryIcon className="text-lg" />
+                        <div className="flex items-center gap-3">
+                          <div className={`p-3 rounded-xl ${catInfo.bg} ${catInfo.border}`}>
+                            <CategoryIcon className={`text-xl ${catInfo.color}`} />
                           </div>
-                          <div className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium ${statusColors[item.status]}`}>
-                            <StatusIcon className="text-xs" />
-                            <span>{item.status.charAt(0).toUpperCase() + item.status.slice(1)}</span>
+                          <div className={`px-3 py-1.5 rounded-full text-xs font-bold ${statusInfoItem.bg} ${statusInfoItem.color} border ${statusInfoItem.border}`}>
+                            <StatusIcon className="inline mr-1.5" />
+                            {item.status.charAt(0).toUpperCase() + item.status.slice(1)}
                           </div>
                         </div>
                         <button
                           onClick={() => handleCopyLink(item.id)}
-                          className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+                          className="p-2 text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-all duration-300 opacity-0 group-hover:opacity-100"
                           title="Copy link"
                         >
                           <FaCopy />
                         </button>
                       </div>
 
-                      {/* Title & Description */}
-                      <div className="flex-grow">
-                        <h3 className="font-bold text-lg text-gray-900 mb-2 line-clamp-2">
+                      {/* Content */}
+                      <div className={`${viewMode === 'list' ? 'flex-1' : ''}`}>
+                        <h3 className="font-bold text-xl text-gray-900 mb-3 line-clamp-2 group-hover:text-emerald-700 transition-colors">
                           {item.title}
                         </h3>
-                        <p className="text-gray-600 text-sm mb-4 line-clamp-3">
+                        <p className="text-gray-600 text-sm leading-relaxed line-clamp-3 mb-4">
                           {truncateText(item.description, 120)}
                         </p>
-                      </div>
 
-                      {/* Requestor & Time */}
-                      <div className="flex items-center justify-between mb-4">
-                        <div className="flex items-center gap-2">
-                          <div className="p-1 bg-gray-100 rounded-full">
-                            <FaUser className="text-gray-400 text-sm" />
+                        {/* Meta Info */}
+                        <div className="flex items-center justify-between mb-6">
+                          <div className="flex items-center gap-3">
+                            <div className="p-2 bg-gray-100 rounded-full">
+                              <FaUser className="text-gray-500" />
+                            </div>
+                            <div>
+                              <div className="text-sm font-medium text-gray-700">
+                                {item.requested_by_text || 'Anonymous Student'}
+                              </div>
+                              <div className="text-xs text-gray-500" title={new Date(item.created_at).toLocaleDateString()}>
+                                {formatRelativeTime(item.created_at)}
+                              </div>
+                            </div>
                           </div>
-                          <span className="text-sm text-gray-700">
-                            {item.requested_by_text || 'Anonymous'}
-                          </span>
+                          <div className="text-right">
+                            <div className="text-2xl font-bold text-emerald-600">{item.upvotes || 0}</div>
+                            <div className="text-xs text-gray-500">upvotes</div>
+                          </div>
                         </div>
-                        <span className="text-xs text-gray-500" title={formatDate(item.created_at)}>
-                          {formatRelativeTime(item.created_at)}
-                        </span>
-                      </div>
 
-                      {/* Action Buttons */}
-                      <div className="flex gap-2 pt-4 border-t">
-                        {/* Upvote Button */}
-                        <button
-                          onClick={() => handleUpvote(item.id, item.upvotes || 0)}
-                          className={`flex-1 flex items-center justify-center gap-2 px-4 py-2 rounded-lg transition-all duration-200 ${
-                            hasUpvoted
-                              ? 'bg-green-100 text-green-700 border border-green-300'
-                              : 'bg-gray-50 text-gray-700 hover:bg-gray-100 border border-gray-200'
-                          }`}
-                        >
-                          <FaThumbsUp className={hasUpvoted ? 'text-green-500' : ''} />
-                          <span>Upvote</span>
-                          <span className="font-semibold">{item.upvotes || 0}</span>
-                        </button>
+                        {/* Action Buttons */}
+                        <div className="flex gap-3 pt-6 border-t border-gray-100">
+                          <button
+                            onClick={() => handleUpvote(item.id, item.upvotes || 0)}
+                            className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-xl cursor-pointer transition-all duration-300 transform hover:scale-[1.02] ${
+                              hasUpvoted
+                                ? 'bg-gradient-to-r from-emerald-100 to-green-100 text-emerald-700 border-2 border-emerald-200'
+                                : 'bg-gray-100 text-gray-700 hover:bg-gray-200 border border-gray-200'
+                            }`}
+                          >
+                            <FaThumbsUp className={hasUpvoted ? 'text-emerald-500' : ''} />
+                          </button>
 
-                        {/* Fulfill Button */}
-                        <button
-                          onClick={() => handleFulfillRequest(item.id)}
-                          disabled={item.status === 'fulfilled'}
-                          className={`flex-1 flex items-center justify-center gap-2 px-4 py-2 rounded-lg transition-all duration-200 ${
-                            item.status === 'fulfilled'
-                              ? 'bg-green-100 text-green-700 border border-green-300 cursor-default'
-                              : 'bg-green-50 text-green-600 hover:bg-green-100 border border-green-200'
-                          }`}
-                        >
-                          <FaCheck />
-                          <span>{item.status === 'fulfilled' ? 'Fulfilled' : 'Fulfill'}</span>
-                        </button>
+                          <button
+                            onClick={() => handleFulfillRequest(item.id)}
+                            disabled={item.status === 'fulfilled'}
+                            className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-xl cursor-pointer transition-all duration-300 transform hover:scale-[1.02] ${
+                              item.status === 'fulfilled'
+                                ? 'bg-gradient-to-r from-green-100 to-emerald-100 text-green-700 border-2 border-green-200'
+                                : 'bg-gradient-to-r from-emerald-500 to-green-600 hover:from-emerald-600 hover:to-green-700 text-white border border-emerald-500'
+                            }`}
+                          >
+                            <FaCheck />
+                            <span className="font-semibold">{item.status === 'fulfilled' ? 'Fulfilled' : 'Fulfill'}</span>
+                          </button>
 
-                        {/* Share Button */}
-                        <button
-                          onClick={() => handleShareRequest(item)}
-                          className="flex-1 flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-purple-50 text-purple-600 hover:bg-purple-100 border border-purple-200 transition-all duration-200"
-                        >
-                          <FaShare />
-                          <span className="hidden sm:inline">Share</span>
-                        </button>
+                          <button
+                            onClick={() => handleShareRequest(item)}
+                            className="flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-gradient-to-r from-purple-100 to-violet-100 text-purple-700 hover:from-purple-200 hover:to-violet-200 border border-purple-200 transition-all duration-300 transform hover:scale-[1.02] cursor-pointer"
+                          >
+                            <FaShare />
+                            <span className="font-semibold">Share</span>
+                          </button>
+                        </div>
                       </div>
                     </div>
                   );
@@ -742,74 +738,58 @@ function Requests() {
               </div>
             ) : (
               <div className="text-center py-16">
-                <div className="mx-auto w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center mb-4">
-                  <FaQuestionCircle className="text-gray-400 text-3xl" />
+                <div className="mx-auto w-24 h-24 bg-gradient-to-r from-emerald-100 to-green-100 rounded-full flex items-center justify-center mb-6">
+                  <FaQuestionCircle className="text-emerald-400 text-3xl" />
                 </div>
-                <h3 className="text-xl font-semibold text-gray-700 mb-2">No requests found</h3>
-                <p className="text-gray-500 max-w-md mx-auto mb-6">
+                <h3 className="text-2xl font-bold text-gray-800 mb-3">No requests found</h3>
+                <p className="text-gray-600 max-w-md mx-auto mb-8">
                   {searchQuery || selectedCategory !== 'all' || selectedStatus !== 'all'
                     ? 'Try adjusting your filters or search terms'
-                    : 'Be the first to make a request!'}
+                    : 'Be the first to make a request! Your request will help others too.'}
                 </p>
-                <Button
-                  onClick={clearFilters}
-                  className="bg-green-500 text-white hover:bg-green-600"
-                >
-                  {searchQuery || selectedCategory !== 'all' || selectedStatus !== 'all'
-                    ? 'Clear Filters'
-                    : 'Make First Request'}
-                </Button>
+                <div className="flex flex-col sm:flex-row gap-4 justify-center">
+                  <Button
+                    onClick={clearFilters}
+                    className="px-8 py-3 bg-gradient-to-r from-emerald-500 to-green-600 text-white hover:from-emerald-600 hover:to-green-700 rounded-xl font-bold"
+                  >
+                    {searchQuery || selectedCategory !== 'all' || selectedStatus !== 'all'
+                      ? 'Clear Filters'
+                      : 'Make First Request'}
+                  </Button>
+                </div>
               </div>
             )}
           </div>
 
-          {/* Stats Summary */}
-          {requests.length > 0 && (
-            <div className="mt-8 grid grid-cols-2 md:grid-cols-4 gap-4">
-              <div className="bg-white rounded-xl p-5 shadow-sm border text-center">
-                <div className="text-2xl font-bold text-green-600">{requests.length}</div>
-                <div className="text-sm text-gray-600">Total Requests</div>
-              </div>
-              <div className="bg-white rounded-xl p-5 shadow-sm border text-center">
-                <div className="text-2xl font-bold text-green-600">
-                  {requests.filter(r => r.status === 'fulfilled').length}
-                </div>
-                <div className="text-sm text-gray-600">Fulfilled</div>
-              </div>
-              <div className="bg-white rounded-xl p-5 shadow-sm border text-center">
-                <div className="text-2xl font-bold text-green-600">
-                  {requests.reduce((sum, req) => sum + (req.upvotes || 0), 0)}
-                </div>
-                <div className="text-sm text-gray-600">Total Upvotes</div>
-              </div>
-              <div className="bg-white rounded-xl p-5 shadow-sm border text-center">
-                <div className="text-2xl font-bold text-green-600">
-                  {Math.round(requests.filter(r => r.status === 'fulfilled').length / Math.max(requests.length, 1) * 100)}%
-                </div>
-                <div className="text-sm text-gray-600">Fulfillment Rate</div>
-              </div>
-            </div>
-          )}
-
           {/* Call to Action */}
-          <div className="mt-8 bg-gradient-to-r from-emerald-600 to-green-500 rounded-2xl p-8 text-center text-white">
-            <div className="max-w-3xl mx-auto">
-              <h3 className="text-2xl font-bold mb-4">Help Fulfill Requests</h3>
-              <p className="text-lg mb-6 opacity-90">
-                Browse through requests and help fellow students by sharing your academic materials.
+          <div className="mt-8 bg-gradient-to-br from-emerald-500 via-green-500 to-teal-600 rounded-2xl p-10 text-center text-white shadow-2xl overflow-x-hidden">
+            
+            <div className="relative z-10 max-w-3xl mx-auto">
+              <div className="inline-flex items-center gap-3 bg-white/20 backdrop-blur-sm px-6 py-3 rounded-full mb-6">
+                <FaSeedling className="text-xl" />
+                <span className="font-semibold">Community Powered</span>
+              </div>
+              <h3 className="text-3xl font-bold mb-4">Help Fellow Students Today</h3>
+              <p className="text-xl text-emerald-100 mb-8 opacity-90">
+                Browse through requests and share your academic materials. Together, we build a better learning community.
               </p>
-              <div className="flex flex-col sm:flex-row gap-4 justify-center">
+              <div className="flex flex-col sm:flex-row gap-5 justify-center">
                 <Link 
                   to="/resources" 
-                  className="inline-block bg-white text-green-600 hover:bg-green-50 font-medium px-8 py-3 rounded-xl transition-all duration-200 shadow-lg"
+                  className="inline-flex items-center justify-center gap-3 bg-white text-emerald-600 hover:bg-emerald-50 font-bold px-10 py-4 rounded-xl transition-all duration-300 shadow-2xl hover:shadow-3xl transform hover:-translate-y-1"
                 >
-                  Browse Resources
+                  <FaBook />
+                  <span>Browse Resources</span>
                 </Link>
                 <button 
-                  onClick={() => document.querySelector('#requests-grid').scrollIntoView({ behavior: 'smooth' })}
-                  className="inline-block bg-transparent border-2 border-white text-white hover:bg-white hover:text-green-600 font-medium px-8 py-3 rounded-xl transition-all duration-200 cursor-pointer"
+                  onClick={() => document.getElementById('request-form')?.scrollIntoView({ 
+                    behavior: 'smooth',
+                    block: 'start'
+                  })}
+                  className="inline-flex items-center justify-center gap-3 bg-transparent border-2 border-white text-white hover:bg-white hover:text-emerald-600 font-bold px-10 py-4 rounded-xl transition-all duration-300 transform hover:-translate-y-1"
                 >
-                  View All Requests
+                  <FaPlus />
+                  <span>Make a Request</span>
                 </button>
               </div>
             </div>

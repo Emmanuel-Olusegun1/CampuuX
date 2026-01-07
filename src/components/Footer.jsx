@@ -32,10 +32,10 @@ function Footer() {
   return (
     <footer className="bg-black text-gray-300 border-t border-gray-800">
       <div className="max-w-7xl mx-auto px-6 py-16">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-10">
+        <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-4 gap-10">
           
           {/* Brand Column */}
-          <div className="space-y-6">
+          <div className="space-y-6 col-span-2 md:col-span-1">
             <Link to="/" className="flex items-center">
               <span className="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-green-400 to-green-600">
                 CampuusX
@@ -63,7 +63,7 @@ function Footer() {
 
           {/* Quick Links */}
           <div>
-            <h3 className="text-sm font-semibold text-white uppercase tracking-wider mb-6">Explore</h3>
+            <h3 className="text-sm font-semibold text-emerald-400 uppercase tracking-wider mb-6">Explore</h3>
             <ul className="space-y-3">
               <li>
                 <Link to="/resources" className="text-gray-400 hover:text-green-400 transition-colors duration-300 flex items-center group">
@@ -94,7 +94,7 @@ function Footer() {
 
           {/* Contact Info */}
           <div>
-            <h3 className="text-sm font-semibold text-white uppercase tracking-wider mb-6">Contact</h3>
+            <h3 className="text-sm font-semibold text-emerald-400 uppercase tracking-wider mb-6">Contact</h3>
             <ul className="space-y-4">
               <li className="flex items-start">
                 <FaMapMarkerAlt className="flex-shrink-0 h-5 w-5 text-green-500 mt-0.5" />
@@ -102,7 +102,7 @@ function Footer() {
               </li>
               <li className="flex items-center">
                 <FaEnvelope className="flex-shrink-0 h-5 w-5 text-green-500" />
-                <a href="mailto:contact@campuusx.com" className="ml-3 text-gray-400 hover:text-green-400 transition-colors duration-300">
+                <a href="mailto:contact@campuusx.com" className="ml-3 text-sm md:text-lg text-gray-400 hover:text-green-400 transition-colors duration-300">
                   contact@campuusx.com
                 </a>
               </li>
@@ -116,8 +116,8 @@ function Footer() {
           </div>
 
           {/* Newsletter with Google Sheets Integration */}
-          <div>
-            <h3 className="text-sm font-semibold text-white uppercase tracking-wider mb-6">Stay Updated</h3>
+          <div className="col-span-2 md:col-span-1">
+            <h3 className="text-sm font-semibold text-emerald-400 uppercase tracking-wider mb-6">Stay Updated</h3>
             <p className="text-gray-400 mb-4">
               Get notified about new resources and opportunities
             </p>
