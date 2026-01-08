@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import { FaUsers, FaBook, FaBriefcase, FaArrowRight, FaArrowDown, FaQuoteLeft, FaStar, FaQuestionCircle, FaSearch, FaUpload } from "react-icons/fa";
+import { FaUsers, FaBook, FaBriefcase, FaArrowRight, FaPlay, FaQuoteLeft, FaStar, FaQuestionCircle, FaSearch, FaUpload } from "react-icons/fa";
 import Navbar from "../components/Navbar";
 import Footer from "../components/Footer";
 import Button from "../components/Button";  
@@ -39,12 +39,14 @@ function Home() {
             >
               Browse Resources <FaArrowRight className="ml-2" />
             </Link>
-            <Link
-              to="/share"
+            <a
+              href="https://www.youtube.com/@EmmanuelOlusegun-r9h"
+              target="_blank"
+              rel="noopener noreferrer"
               className="inline-flex items-center justify-center gap-2 bg-white/10 hover:bg-white/20 border border-white/10 text-white px-8 py-4 rounded-full font-semibold text-lg transition-all duration-300 backdrop-blur-lg"
             >
-              Share Content <FaUpload className="ml-2" />
-            </Link>
+              Watch Demo <FaPlay className="ml-2" />
+            </a>
           </div>
         </div>
       </section>
@@ -247,7 +249,7 @@ function Home() {
               },
               {
                 question: "How do I share content?",
-                answer: "Simply go to our Share page, fill in the details about your resource or opportunity, and submit. No registration needed."
+                answer: "Simply go to our resource page, click the share button, fill in the details about your resource and submit. No registration needed."
               },
               {
                 question: "Is there any verification of content?",
@@ -290,12 +292,14 @@ function Home() {
             >
               Browse Resources <FaArrowRight className="ml-2" />
             </Link>
-            <Link
-              to="/share"
+            <a
+              href="https://www.youtube.com/@EmmanuelOlusegun-r9h"
+              target="_blank"
+              rel="noopener noreferrer"
               className="inline-flex items-center justify-center gap-2 bg-white/10 hover:bg-white/20 border border-white/20 text-white px-8 py-4 rounded-full font-semibold text-lg transition-all duration-300 backdrop-blur-lg"
             >
-              Share Content <FaUpload className="ml-2" />
-            </Link>
+              Watch Demo <FaPlay className="ml-2" />
+            </a>
           </div>
         </div>
       </section>
