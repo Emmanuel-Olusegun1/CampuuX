@@ -3,25 +3,32 @@ import { supabase } from '../lib/supabase';
 import { 
   FaBriefcase, FaBuilding, FaMapMarkerAlt, FaMoneyBillWave, 
   FaFileAlt, FaTrash, FaEdit, FaGraduationCap, FaUsers,
-  FaChartLine, FaCalendarAlt, FaEye, FaTimes, FaLink, FaCheck, FaTimesCircle
+  FaChartLine, FaCalendarAlt, FaEye, FaTimes, FaLink, FaCheck, FaTimesCircle,
+  FaPlus, FaSearch, FaFilter, FaSort, FaExternalLinkAlt, FaDownload,
+  FaArrowUp, FaArrowDown, FaClock, FaGlobe, FaUserGraduate, FaStar,
+  FaSeedling, FaBolt, FaRocket
 } from 'react-icons/fa';
 
 const AdminDashboard = () => {
   // Jobs state
   const [jobs, setJobs] = useState([]);
+  const [filteredJobs, setFilteredJobs] = useState([]);
   const [isJobLoading, setIsJobLoading] = useState(false);
   const [isEditingJob, setIsEditingJob] = useState(false);
   const [currentJob, setCurrentJob] = useState(null);
   const [selectedJob, setSelectedJob] = useState(null);
   const [showJobModal, setShowJobModal] = useState(false);
+  const [jobSearch, setJobSearch] = useState('');
 
   // Scholarships state
   const [scholarships, setScholarships] = useState([]);
+  const [filteredScholarships, setFilteredScholarships] = useState([]);
   const [isScholarshipLoading, setIsScholarshipLoading] = useState(false);
   const [isEditingScholarship, setIsEditingScholarship] = useState(false);
   const [currentScholarship, setCurrentScholarship] = useState(null);
   const [selectedScholarship, setSelectedScholarship] = useState(null);
   const [showScholarshipModal, setShowScholarshipModal] = useState(false);
+  const [scholarshipSearch, setScholarshipSearch] = useState('');
 
   // Active tab state
   const [activeTab, setActiveTab] = useState('jobs');
@@ -57,17 +64,42 @@ const AdminDashboard = () => {
   const [stats, setStats] = useState({
     totalJobs: 0,
     totalScholarships: 0,
-    activeOpportunities: 0
+    activeJobs: 0,
+    activeScholarships: 0
   });
 
+  // Success/Error messages
+  const [successMessage, setSuccessMessage] = useState('');
+  const [errorMessage, setErrorMessage] = useState('');
+
   // Field options for scholarships
-  const fieldOptions = ['STEM', 'Engineering', 'Business', 'Medical', 'Creative Arts'];
+  const fieldOptions = [
+    { id: 'STEM', name: 'STEM', icon: FaChartLine, color: 'text-emerald-600', bg: 'bg-emerald-50' },
+    { id: 'Engineering', name: 'Engineering', icon: FaBuilding, color: 'text-green-600', bg: 'bg-green-50' },
+    { id: 'Business', name: 'Business', icon: FaMoneyBillWave, color: 'text-amber-600', bg: 'bg-amber-50' },
+    { id: 'Medicine', name: 'Medicine', icon: FaUserGraduate, color: 'text-blue-600', bg: 'bg-blue-50' },
+    { id: 'Arts', name: 'Arts', icon: FaStar, color: 'text-purple-600', bg: 'bg-purple-50' }
+  ];
   
   // Status options for scholarships
   const statusOptions = ['Open', 'Closed'];
 
   // Job type options
-  const jobTypeOptions = ['Full-time', 'Part-time', 'Internship', 'Contract', 'Freelance'];
+  const jobTypeOptions = [
+    { id: 'Full-time', name: 'Full-time', icon: FaBriefcase, color: 'text-green-600', bg: 'bg-green-50' },
+    { id: 'Part-time', name: 'Part-time', icon: FaClock, color: 'text-amber-600', bg: 'bg-amber-50' },
+    { id: 'Internship', name: 'Internship', icon: FaUserGraduate, color: 'text-blue-600', bg: 'bg-blue-50' },
+    { id: 'Contract', name: 'Contract', icon: FaFileAlt, color: 'text-purple-600', bg: 'bg-purple-50' },
+    { id: 'Freelance', name: 'Freelance', icon: FaGlobe, color: 'text-emerald-600', bg: 'bg-emerald-50' }
+  ];
+
+  // Scholarship type options
+  const scholarshipTypeOptions = [
+    { id: 'Merit-Based', name: 'Merit-Based', icon: FaStar, color: 'text-emerald-600', bg: 'bg-emerald-50' },
+    { id: 'Need-Based', name: 'Need-Based', icon: FaUsers, color: 'text-green-600', bg: 'bg-green-50' },
+    { id: 'Athletic', name: 'Athletic', icon: FaRocket, color: 'text-amber-600', bg: 'bg-amber-50' },
+    { id: 'Minority', name: 'Minority', icon: FaSeedling, color: 'text-blue-600', bg: 'bg-blue-50' }
+  ];
 
   // Currency options
   const currencyOptions = [
@@ -80,8 +112,31 @@ const AdminDashboard = () => {
   // Format currency
   const formatCurrency = (amount, currencyCode) => {
     const currency = currencyOptions.find(c => c.code === currencyCode) || currencyOptions[0];
-    if (!amount) return '';
-    return `${currency.symbol}${amount.replace(/\D/g, '').replace(/\B(?=(\d{3})+(?!\d))/g, ',')}`;
+    if (!amount) return 'Not specified';
+    return `${currency.symbol}${Number(amount).toLocaleString()}`;
+  };
+
+  // Format date
+  const formatDate = (dateString) => {
+    if (!dateString) return 'No deadline';
+    const date = new Date(dateString);
+    return date.toLocaleDateString('en-US', { 
+      year: 'numeric', 
+      month: 'long', 
+      day: 'numeric' 
+    });
+  };
+
+  // Show success message
+  const showSuccess = (message) => {
+    setSuccessMessage(message);
+    setTimeout(() => setSuccessMessage(''), 3000);
+  };
+
+  // Show error message
+  const showError = (message) => {
+    setErrorMessage(message);
+    setTimeout(() => setErrorMessage(''), 5000);
   };
 
   // Fetch all data
@@ -91,26 +146,35 @@ const AdminDashboard = () => {
       setIsScholarshipLoading(true);
 
       // Fetch jobs
-      const { data: jobsData } = await supabase
+      const { data: jobsData, error: jobsError } = await supabase
         .from('jobs')
         .select('*')
         .order('created_at', { ascending: false });
 
-      // Fetch scholarships from Supabase
-      const { data: scholarshipsData } = await supabase
+      if (jobsError) throw jobsError;
+
+      // Fetch scholarships
+      const { data: scholarshipsData, error: scholarshipsError } = await supabase
         .from('scholarships')
         .select('*')
         .order('created_at', { ascending: false });
 
+      if (scholarshipsError) throw scholarshipsError;
+
       setJobs(jobsData || []);
+      setFilteredJobs(jobsData || []);
       setScholarships(scholarshipsData || []);
+      setFilteredScholarships(scholarshipsData || []);
+      
       setStats({
         totalJobs: jobsData?.length || 0,
         totalScholarships: scholarshipsData?.length || 0,
-        activeOpportunities: (jobsData?.length || 0) + (scholarshipsData?.length || 0)
+        activeJobs: jobsData?.filter(j => j.status !== 'Closed')?.length || 0,
+        activeScholarships: scholarshipsData?.filter(s => s.status === 'Open')?.length || 0
       });
     } catch (error) {
       console.error('Error fetching data:', error);
+      showError('Failed to load data. Please try again.');
     } finally {
       setIsJobLoading(false);
       setIsScholarshipLoading(false);
@@ -121,6 +185,34 @@ const AdminDashboard = () => {
     fetchData();
   }, []);
 
+  // Filter jobs based on search
+  useEffect(() => {
+    if (jobSearch.trim() === '') {
+      setFilteredJobs(jobs);
+    } else {
+      const filtered = jobs.filter(job =>
+        job.title.toLowerCase().includes(jobSearch.toLowerCase()) ||
+        job.company.toLowerCase().includes(jobSearch.toLowerCase()) ||
+        job.location.toLowerCase().includes(jobSearch.toLowerCase())
+      );
+      setFilteredJobs(filtered);
+    }
+  }, [jobSearch, jobs]);
+
+  // Filter scholarships based on search
+  useEffect(() => {
+    if (scholarshipSearch.trim() === '') {
+      setFilteredScholarships(scholarships);
+    } else {
+      const filtered = scholarships.filter(scholarship =>
+        scholarship.name.toLowerCase().includes(scholarshipSearch.toLowerCase()) ||
+        scholarship.provider.toLowerCase().includes(scholarshipSearch.toLowerCase()) ||
+        scholarship.field.toLowerCase().includes(scholarshipSearch.toLowerCase())
+      );
+      setFilteredScholarships(filtered);
+    }
+  }, [scholarshipSearch, scholarships]);
+
   // Jobs handlers
   const handleJobSubmit = async (e) => {
     e.preventDefault();
@@ -129,28 +221,32 @@ const AdminDashboard = () => {
     try {
       const jobData = {
         ...jobForm,
-        requirements: jobForm.requirements.split('\n').filter(r => r.trim() !== '').join(',')
+        salary: jobForm.salary ? Number(jobForm.salary.replace(/\D/g, '')) : null,
+        requirements: jobForm.requirements.split('\n').filter(r => r.trim() !== '').join(','),
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
       };
 
+      let result;
       if (isEditingJob && currentJob) {
-        const { error } = await supabase
+        result = await supabase
           .from('jobs')
           .update(jobData)
           .eq('id', currentJob.id);
-        
-        if (error) throw error;
       } else {
-        const { error } = await supabase
+        result = await supabase
           .from('jobs')
           .insert([jobData]);
-        
-        if (error) throw error;
       }
 
+      if (result.error) throw result.error;
+
+      showSuccess(isEditingJob ? 'Job updated successfully!' : 'Job created successfully!');
       resetJobForm();
       fetchData();
     } catch (error) {
       console.error('Error saving job:', error);
+      showError(`Failed to save job: ${error.message}`);
     } finally {
       setIsJobLoading(false);
     }
@@ -173,19 +269,21 @@ const AdminDashboard = () => {
   };
 
   const handleDeleteJob = async (id) => {
-    if (window.confirm('Are you sure you want to delete this job?')) {
-      try {
-        const { error } = await supabase
-          .from('jobs')
-          .delete()
-          .eq('id', id);
-        
-        if (error) throw error;
-        
-        fetchData();
-      } catch (error) {
-        console.error('Error deleting job:', error);
-      }
+    if (!window.confirm('Are you sure you want to delete this job?')) return;
+
+    try {
+      const { error } = await supabase
+        .from('jobs')
+        .delete()
+        .eq('id', id);
+      
+      if (error) throw error;
+      
+      showSuccess('Job deleted successfully!');
+      fetchData();
+    } catch (error) {
+      console.error('Error deleting job:', error);
+      showError('Failed to delete job. Please try again.');
     }
   };
 
@@ -197,28 +295,31 @@ const AdminDashboard = () => {
     try {
       const scholarshipData = {
         ...scholarshipForm,
-        amount: scholarshipForm.amount
+        amount: scholarshipForm.amount ? Number(scholarshipForm.amount.replace(/\D/g, '')) : null,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
       };
 
+      let result;
       if (isEditingScholarship && currentScholarship) {
-        const { error } = await supabase
+        result = await supabase
           .from('scholarships')
           .update(scholarshipData)
           .eq('id', currentScholarship.id);
-        
-        if (error) throw error;
       } else {
-        const { error } = await supabase
+        result = await supabase
           .from('scholarships')
           .insert([scholarshipData]);
-        
-        if (error) throw error;
       }
-      
+
+      if (result.error) throw result.error;
+
+      showSuccess(isEditingScholarship ? 'Scholarship updated successfully!' : 'Scholarship created successfully!');
       resetScholarshipForm();
       fetchData();
     } catch (error) {
       console.error('Error saving scholarship:', error);
+      showError(`Failed to save scholarship: ${error.message}`);
     } finally {
       setIsScholarshipLoading(false);
     }
@@ -243,98 +344,154 @@ const AdminDashboard = () => {
   };
 
   const handleDeleteScholarship = async (id) => {
-    if (window.confirm('Are you sure you want to delete this scholarship?')) {
-      try {
-        const { error } = await supabase
-          .from('scholarships')
-          .delete()
-          .eq('id', id);
-        
-        if (error) throw error;
-        
-        fetchData();
-      } catch (error) {
-        console.error('Error deleting scholarship:', error);
-      }
+    if (!window.confirm('Are you sure you want to delete this scholarship?')) return;
+
+    try {
+      const { error } = await supabase
+        .from('scholarships')
+        .delete()
+        .eq('id', id);
+      
+      if (error) throw error;
+      
+      showSuccess('Scholarship deleted successfully!');
+      fetchData();
+    } catch (error) {
+      console.error('Error deleting scholarship:', error);
+      showError('Failed to delete scholarship. Please try again.');
     }
   };
 
   // Render function for status badge
   const renderStatusBadge = (status) => {
     return status === 'Open' ? (
-      <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
-        <FaCheck className="mr-1" /> Open
+      <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-bold bg-gradient-to-r from-green-100 to-emerald-100 text-green-700 border border-green-200">
+        <FaCheck /> Open
       </span>
     ) : (
-      <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800">
-        <FaTimesCircle className="mr-1" /> Closed
+      <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-bold bg-gradient-to-r from-red-100 to-pink-100 text-red-700 border border-red-200">
+        <FaTimesCircle /> Closed
       </span>
     );
   };
 
   return (
-    <div className="min-h-screen bg-green-50">
+    <div className="min-h-screen bg-gradient-to-b from-gray-50 via-emerald-50/20 to-white">
+      {/* Success Toast */}
+      {successMessage && (
+        <div className="fixed top-4 right-4 z-50 animate-slideDown">
+          <div className="bg-gradient-to-r from-emerald-500 to-green-600 text-white px-6 py-3 rounded-xl shadow-xl flex items-center space-x-3 backdrop-blur-sm bg-opacity-90">
+            <FaCheck className="animate-pulse" />
+            <span className="font-medium">{successMessage}</span>
+          </div>
+        </div>
+      )}
+
+      {/* Error Toast */}
+      {errorMessage && (
+        <div className="fixed top-4 right-4 z-50 animate-slideDown">
+          <div className="bg-gradient-to-r from-red-500 to-pink-600 text-white px-6 py-3 rounded-xl shadow-xl flex items-center space-x-3 backdrop-blur-sm bg-opacity-90">
+            <FaTimes />
+            <span className="font-medium">{errorMessage}</span>
+            <button onClick={() => setErrorMessage('')} className="ml-4 hover:opacity-80">
+              <FaTimes />
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Dashboard Header */}
-      <div className="bg-green-600 shadow">
-        <div className="max-w-7xl mx-auto px-4 py-6 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center">
-            <h1 className="text-2xl font-bold text-white">Admin Dashboard</h1>
-            <div className="flex space-x-2">
-              <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                <FaChartLine className="mr-1" /> Admin Mode
-              </span>
+      <div className="bg-gradient-to-br from-green-500 via-emerald-500 to-green-600 shadow-lg">
+        <div className="max-w-7xl mx-auto px-4 py-8 sm:px-6 lg:px-8">
+          <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+            <div className="flex items-center gap-4">
+              <div className="p-3 bg-white/20 rounded-2xl backdrop-blur-sm">
+                <FaChartLine className="text-2xl text-white" />
+              </div>
+              <div>
+                <h1 className="text-3xl font-bold text-white">Admin Dashboard</h1>
+                <p className="text-green-100 mt-1">Manage jobs and scholarships</p>
+              </div>
+            </div>
+            <div className="flex flex-wrap gap-3">
+              <button 
+                onClick={() => setActiveTab('jobs')}
+                className="px-4 py-2 bg-white/20 backdrop-blur-sm text-white rounded-xl hover:bg-white/30 transition-all duration-300 flex items-center gap-2"
+              >
+                <FaBriefcase />
+                Jobs: {stats.totalJobs}
+              </button>
+              <button 
+                onClick={() => setActiveTab('scholarships')}
+                className="px-4 py-2 bg-white/20 backdrop-blur-sm text-white rounded-xl hover:bg-white/30 transition-all duration-300 flex items-center gap-2"
+              >
+                <FaGraduationCap />
+                Scholarships: {stats.totalScholarships}
+              </button>
             </div>
           </div>
         </div>
       </div>
 
       {/* Stats Overview */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-6">
-        <div className="grid grid-cols-1 gap-5 sm:grid-cols-3">
-          <div className="bg-white overflow-hidden shadow rounded-lg border border-green-200">
-            <div className="px-4 py-5 sm:p-6">
-              <div className="flex items-center">
-                <div className="flex-shrink-0 bg-green-500 rounded-md p-3">
-                  <FaBriefcase className="h-6 w-6 text-white" />
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-8">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          <div className="bg-gradient-to-br from-white to-gray-50 border-2 border-gray-100 rounded-2xl p-6 shadow-sm hover:shadow-md transition-all duration-300 transform hover:-translate-y-1">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-gray-600 font-medium">Total Jobs</p>
+                <p className="text-3xl font-bold text-gray-900 mt-2">{stats.totalJobs}</p>
+                <div className="flex items-center gap-1 mt-2">
+                  <span className={`text-xs font-medium ${stats.totalJobs > 0 ? 'text-green-600' : 'text-gray-400'}`}>
+                    {stats.activeJobs} Active
+                  </span>
                 </div>
-                <div className="ml-5 w-0 flex-1">
-                  <dt className="text-sm font-medium text-gray-500 truncate">Total Jobs</dt>
-                  <dd className="flex items-baseline">
-                    <div className="text-2xl font-semibold text-gray-900">{stats.totalJobs}</div>
-                  </dd>
-                </div>
+              </div>
+              <div className="p-3 bg-gradient-to-br from-green-100 to-emerald-100 rounded-xl">
+                <FaBriefcase className="text-2xl text-green-600" />
               </div>
             </div>
           </div>
 
-          <div className="bg-white overflow-hidden shadow rounded-lg border border-green-200">
-            <div className="px-4 py-5 sm:p-6">
-              <div className="flex items-center">
-                <div className="flex-shrink-0 bg-green-500 rounded-md p-3">
-                  <FaGraduationCap className="h-6 w-6 text-white" />
+          <div className="bg-gradient-to-br from-white to-gray-50 border-2 border-gray-100 rounded-2xl p-6 shadow-sm hover:shadow-md transition-all duration-300 transform hover:-translate-y-1">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-gray-600 font-medium">Total Scholarships</p>
+                <p className="text-3xl font-bold text-gray-900 mt-2">{stats.totalScholarships}</p>
+                <div className="flex items-center gap-1 mt-2">
+                  <span className={`text-xs font-medium ${stats.activeScholarships > 0 ? 'text-green-600' : 'text-gray-400'}`}>
+                    {stats.activeScholarships} Open
+                  </span>
                 </div>
-                <div className="ml-5 w-0 flex-1">
-                  <dt className="text-sm font-medium text-gray-500 truncate">Total Scholarships</dt>
-                  <dd className="flex items-baseline">
-                    <div className="text-2xl font-semibold text-gray-900">{stats.totalScholarships}</div>
-                  </dd>
-                </div>
+              </div>
+              <div className="p-3 bg-gradient-to-br from-emerald-100 to-green-100 rounded-xl">
+                <FaGraduationCap className="text-2xl text-emerald-600" />
               </div>
             </div>
           </div>
 
-          <div className="bg-white overflow-hidden shadow rounded-lg border border-green-200">
-            <div className="px-4 py-5 sm:p-6">
-              <div className="flex items-center">
-                <div className="flex-shrink-0 bg-green-500 rounded-md p-3">
-                  <FaUsers className="h-6 w-6 text-white" />
-                </div>
-                <div className="ml-5 w-0 flex-1">
-                  <dt className="text-sm font-medium text-gray-500 truncate">Active Opportunities</dt>
-                  <dd className="flex items-baseline">
-                    <div className="text-2xl font-semibold text-gray-900">{stats.activeOpportunities}</div>
-                  </dd>
-                </div>
+          <div className="bg-gradient-to-br from-white to-gray-50 border-2 border-gray-100 rounded-2xl p-6 shadow-sm hover:shadow-md transition-all duration-300 transform hover:-translate-y-1">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-gray-600 font-medium">Active Opportunities</p>
+                <p className="text-3xl font-bold text-gray-900 mt-2">{stats.activeJobs + stats.activeScholarships}</p>
+                <div className="text-xs text-gray-500 mt-2">Available for applications</div>
+              </div>
+              <div className="p-3 bg-gradient-to-br from-blue-100 to-cyan-100 rounded-xl">
+                <FaUsers className="text-2xl text-blue-600" />
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-gradient-to-br from-white to-gray-50 border-2 border-gray-100 rounded-2xl p-6 shadow-sm hover:shadow-md transition-all duration-300 transform hover:-translate-y-1">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-gray-600 font-medium">Total Listings</p>
+                <p className="text-3xl font-bold text-gray-900 mt-2">{stats.totalJobs + stats.totalScholarships}</p>
+                <div className="text-xs text-gray-500 mt-2">All job and scholarship posts</div>
+              </div>
+              <div className="p-3 bg-gradient-to-br from-purple-100 to-pink-100 rounded-xl">
+                <FaChartLine className="text-2xl text-purple-600" />
               </div>
             </div>
           </div>
@@ -342,24 +499,38 @@ const AdminDashboard = () => {
       </div>
 
       {/* Main Content */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-6">
-        <div className="bg-white shadow rounded-lg overflow-hidden border border-green-200">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-8 mb-12">
+        <div className="bg-white rounded-2xl shadow-lg overflow-hidden border border-gray-100">
           {/* Tabs */}
           <div className="border-b border-gray-200">
-            <nav className="-mb-px flex">
+            <nav className="flex overflow-x-auto">
               <button
                 onClick={() => setActiveTab('jobs')}
-                className={`whitespace-nowrap py-4 px-6 border-b-2 font-medium text-sm ${activeTab === 'jobs' ? 'border-green-500 text-green-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}`}
+                className={`flex items-center gap-2 whitespace-nowrap py-4 px-6 border-b-2 font-medium text-sm transition-all duration-300 ${
+                  activeTab === 'jobs' 
+                    ? 'border-green-500 text-green-600 bg-green-50' 
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50'
+                }`}
               >
-                <FaBriefcase className="inline mr-2" />
+                <FaBriefcase />
                 Job Postings
+                <span className="bg-green-100 text-green-800 text-xs px-2 py-0.5 rounded-full">
+                  {jobs.length}
+                </span>
               </button>
               <button
                 onClick={() => setActiveTab('scholarships')}
-                className={`whitespace-nowrap py-4 px-6 border-b-2 font-medium text-sm ${activeTab === 'scholarships' ? 'border-green-500 text-green-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}`}
+                className={`flex items-center gap-2 whitespace-nowrap py-4 px-6 border-b-2 font-medium text-sm transition-all duration-300 ${
+                  activeTab === 'scholarships' 
+                    ? 'border-green-500 text-green-600 bg-green-50' 
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50'
+                }`}
               >
-                <FaGraduationCap className="inline mr-2" />
+                <FaGraduationCap />
                 Scholarships
+                <span className="bg-green-100 text-green-800 text-xs px-2 py-0.5 rounded-full">
+                  {scholarships.length}
+                </span>
               </button>
             </nav>
           </div>
@@ -367,84 +538,96 @@ const AdminDashboard = () => {
           {/* Tab Content */}
           <div className="p-6">
             {activeTab === 'jobs' ? (
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                 {/* Job Form */}
                 <div className="lg:col-span-1">
-                  <div className="bg-green-50 p-4 rounded-lg border border-green-200">
-                    <h2 className="text-lg font-semibold mb-3">
-                      {isEditingJob ? 'Edit Job' : 'Create New Job'}
-                    </h2>
-                    <form onSubmit={handleJobSubmit} className="space-y-3">
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Job Title</label>
+                  <div className="bg-gradient-to-br from-gray-50 to-white rounded-2xl border border-gray-200 p-6 shadow-sm">
+                    <div className="flex items-center justify-between mb-6">
+                      <h2 className="text-xl font-bold text-gray-900">
+                        {isEditingJob ? 'Edit Job' : 'Create New Job'}
+                      </h2>
+                      <div className="p-2 bg-green-100 rounded-lg">
+                        <FaBriefcase className="text-green-600" />
+                      </div>
+                    </div>
+                    
+                    <form onSubmit={handleJobSubmit} className="space-y-4">
+                      <div className="space-y-1">
+                        <label className="block text-sm font-medium text-gray-700">Job Title *</label>
                         <input
                           type="text"
                           name="title"
                           value={jobForm.title}
                           onChange={(e) => setJobForm({...jobForm, title: e.target.value})}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-green-500 focus:border-green-500"
+                          className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:border-green-500 focus:ring-2 focus:ring-green-100 transition-all duration-300"
+                          placeholder="Senior Software Engineer"
                           required
                         />
                       </div>
 
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Company</label>
+                      <div className="space-y-1">
+                        <label className="block text-sm font-medium text-gray-700">Company *</label>
                         <input
                           type="text"
                           name="company"
                           value={jobForm.company}
                           onChange={(e) => setJobForm({...jobForm, company: e.target.value})}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-green-500 focus:border-green-500"
+                          className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:border-green-500 focus:ring-2 focus:ring-green-100 transition-all duration-300"
+                          placeholder="Company Name"
                           required
                         />
                       </div>
 
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Job Type</label>
-                        <select
-                          name="type"
-                          value={jobForm.type}
-                          onChange={(e) => setJobForm({...jobForm, type: e.target.value})}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-green-500 focus:border-green-500"
-                          required
-                        >
-                          {jobTypeOptions.map(type => (
-                            <option key={type} value={type}>{type}</option>
-                          ))}
-                        </select>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-1">
+                          <label className="block text-sm font-medium text-gray-700">Job Type *</label>
+                          <select
+                            name="type"
+                            value={jobForm.type}
+                            onChange={(e) => setJobForm({...jobForm, type: e.target.value})}
+                            className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:border-green-500 focus:ring-2 focus:ring-green-100 transition-all duration-300"
+                            required
+                          >
+                            {jobTypeOptions.map(type => (
+                              <option key={type.id} value={type.id}>{type.name}</option>
+                            ))}
+                          </select>
+                        </div>
+
+                        <div className="space-y-1">
+                          <label className="block text-sm font-medium text-gray-700">Location *</label>
+                          <input
+                            type="text"
+                            name="location"
+                            value={jobForm.location}
+                            onChange={(e) => setJobForm({...jobForm, location: e.target.value})}
+                            className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:border-green-500 focus:ring-2 focus:ring-green-100 transition-all duration-300"
+                            placeholder="Lagos, Nigeria"
+                            required
+                          />
+                        </div>
                       </div>
 
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Location</label>
-                        <input
-                          type="text"
-                          name="location"
-                          value={jobForm.location}
-                          onChange={(e) => setJobForm({...jobForm, location: e.target.value})}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-green-500 focus:border-green-500"
-                          required
-                        />
-                      </div>
-
-                      <div className="grid grid-cols-2 gap-2">
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">Salary</label>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-1">
+                          <label className="block text-sm font-medium text-gray-700">Salary *</label>
                           <input
                             type="text"
                             name="salary"
                             value={jobForm.salary}
                             onChange={(e) => setJobForm({...jobForm, salary: e.target.value})}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-green-500 focus:border-green-500"
+                            className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:border-green-500 focus:ring-2 focus:ring-green-100 transition-all duration-300"
+                            placeholder="100000"
                             required
                           />
                         </div>
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">Currency</label>
+                        <div className="space-y-1">
+                          <label className="block text-sm font-medium text-gray-700">Currency *</label>
                           <select
                             name="salary_currency"
                             value={jobForm.salary_currency}
                             onChange={(e) => setJobForm({...jobForm, salary_currency: e.target.value})}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-green-500 focus:border-green-500"
+                            className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:border-green-500 focus:ring-2 focus:ring-green-100 transition-all duration-300"
                             required
                           >
                             {currencyOptions.map(currency => (
@@ -456,55 +639,70 @@ const AdminDashboard = () => {
                         </div>
                       </div>
 
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Job URL</label>
-                        <input
-                          type="url"
-                          name="url"
-                          value={jobForm.url}
-                          onChange={(e) => setJobForm({...jobForm, url: e.target.value})}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-green-500 focus:border-green-500"
-                          placeholder="https://example.com/job"
-                        />
+                      <div className="space-y-1">
+                        <label className="block text-sm font-medium text-gray-700">Job URL</label>
+                        <div className="relative">
+                          <FaLink className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400" />
+                          <input
+                            type="url"
+                            name="url"
+                            value={jobForm.url}
+                            onChange={(e) => setJobForm({...jobForm, url: e.target.value})}
+                            className="w-full pl-12 pr-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:border-green-500 focus:ring-2 focus:ring-green-100 transition-all duration-300"
+                            placeholder="https://company.com/job"
+                          />
+                        </div>
                       </div>
 
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
+                      <div className="space-y-1">
+                        <label className="block text-sm font-medium text-gray-700">Description *</label>
                         <textarea
                           name="description"
                           value={jobForm.description}
                           onChange={(e) => setJobForm({...jobForm, description: e.target.value})}
                           rows="4"
-                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-green-500 focus:border-green-500"
+                          className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:border-green-500 focus:ring-2 focus:ring-green-100 transition-all duration-300"
+                          placeholder="Describe the job responsibilities and requirements..."
                           required
                         />
                       </div>
 
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Requirements (one per line)</label>
+                      <div className="space-y-1">
+                        <label className="block text-sm font-medium text-gray-700">Requirements (one per line) *</label>
                         <textarea
                           name="requirements"
                           value={jobForm.requirements}
                           onChange={(e) => setJobForm({...jobForm, requirements: e.target.value})}
                           rows="4"
-                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-green-500 focus:border-green-500"
+                          className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:border-green-500 focus:ring-2 focus:ring-green-100 transition-all duration-300"
+                          placeholder="Bachelor's degree in Computer Science\n3+ years of experience..."
                           required
                         />
                       </div>
 
-                      <div className="flex space-x-2 pt-2">
+                      <div className="flex gap-3 pt-4">
                         <button
                           type="submit"
                           disabled={isJobLoading}
-                          className="flex-1 bg-green-600 hover:bg-green-700 text-white py-2 px-4 rounded-md disabled:opacity-50"
+                          className="flex-1 flex items-center justify-center gap-2 px-6 py-3 bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white font-semibold rounded-xl shadow-sm hover:shadow-md transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
                         >
-                          {isJobLoading ? 'Saving...' : (isEditingJob ? 'Update' : 'Create')}
+                          {isJobLoading ? (
+                            <>
+                              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                              {isEditingJob ? 'Updating...' : 'Creating...'}
+                            </>
+                          ) : (
+                            <>
+                              {isEditingJob ? <FaEdit /> : <FaPlus />}
+                              {isEditingJob ? 'Update Job' : 'Create Job'}
+                            </>
+                          )}
                         </button>
                         {isEditingJob && (
                           <button
                             type="button"
                             onClick={resetJobForm}
-                            className="bg-gray-200 hover:bg-gray-300 text-gray-800 py-2 px-4 rounded-md"
+                            className="px-6 py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold rounded-xl transition-all duration-300"
                           >
                             Cancel
                           </button>
@@ -516,176 +714,232 @@ const AdminDashboard = () => {
 
                 {/* Jobs List */}
                 <div className="lg:col-span-2">
-                  <div className="bg-green-50 p-4 rounded-lg border border-green-200">
-                    <h2 className="text-lg font-semibold mb-3">Posted Jobs</h2>
+                  <div className="bg-gradient-to-br from-gray-50 to-white rounded-2xl border border-gray-200 p-6 shadow-sm">
+                    <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
+                      <div>
+                        <h2 className="text-xl font-bold text-gray-900">Posted Jobs</h2>
+                        <p className="text-gray-600 mt-1">{filteredJobs.length} job{filteredJobs.length !== 1 ? 's' : ''} found</p>
+                      </div>
+                      <div className="relative w-full sm:w-auto">
+                        <FaSearch className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400" />
+                        <input
+                          type="text"
+                          placeholder="Search jobs..."
+                          value={jobSearch}
+                          onChange={(e) => setJobSearch(e.target.value)}
+                          className="w-full sm:w-64 pl-12 pr-4 py-2.5 border-2 border-gray-200 rounded-xl focus:outline-none focus:border-green-500 focus:ring-2 focus:ring-green-100 transition-all duration-300"
+                        />
+                      </div>
+                    </div>
                     
-                    {isJobLoading && jobs.length === 0 ? (
-                      <p>Loading jobs...</p>
-                    ) : jobs.length === 0 ? (
-                      <p>No jobs posted yet.</p>
+                    {isJobLoading && filteredJobs.length === 0 ? (
+                      <div className="text-center py-12">
+                        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-green-500 mx-auto mb-4"></div>
+                        <p className="text-gray-600">Loading jobs...</p>
+                      </div>
+                    ) : filteredJobs.length === 0 ? (
+                      <div className="text-center py-12">
+                        <div className="mx-auto w-20 h-20 bg-gradient-to-r from-green-100 to-emerald-100 rounded-full flex items-center justify-center mb-4">
+                          <FaBriefcase className="text-green-400 text-2xl" />
+                        </div>
+                        <h3 className="text-lg font-bold text-gray-800 mb-2">No jobs found</h3>
+                        <p className="text-gray-600">
+                          {jobSearch ? 'Try adjusting your search terms' : 'Create your first job posting!'}
+                        </p>
+                      </div>
                     ) : (
-                      <div className="space-y-3">
-                        {jobs.map(job => (
-                          <div key={job.id} className="p-3 bg-white rounded-md border border-gray-200 hover:shadow-sm">
-                            <div className="flex justify-between">
-                              <div className="flex-1">
-                                <h3 className="font-medium text-green-800">{job.title}</h3>
-                                <p className="text-sm text-gray-600">{job.company} • {job.location}</p>
-                                <span className={`inline-block mt-1 px-2 py-1 text-xs rounded ${
-                                  job.type === 'Full-time' ? 'bg-green-100 text-green-800' :
-                                  job.type === 'Part-time' ? 'bg-yellow-100 text-yellow-800' :
-                                  job.type === 'Internship' ? 'bg-blue-100 text-blue-800' :
-                                  'bg-gray-100 text-gray-800'
-                                }`}>
-                                  {job.type}
-                                </span>
-                                <div className="mt-2 flex items-center text-sm text-gray-500">
-                                  <FaMoneyBillWave className="mr-1" />
-                                  {formatCurrency(job.salary, job.salary_currency)}
+                      <div className="space-y-4 max-h-[600px] overflow-y-auto pr-2">
+                        {filteredJobs.map(job => {
+                          const jobType = jobTypeOptions.find(t => t.id === job.type) || jobTypeOptions[0];
+                          const JobTypeIcon = jobType.icon;
+                          
+                          return (
+                            <div key={job.id} className="bg-white border-2 border-gray-100 rounded-xl p-5 hover:border-green-200 hover:shadow-md transition-all duration-300 group">
+                              <div className="flex flex-col sm:flex-row justify-between gap-4">
+                                <div className="flex-1">
+                                  <div className="flex items-start gap-3 mb-3">
+                                    <div className={`p-2.5 rounded-lg ${jobType.bg}`}>
+                                      <JobTypeIcon className={`text-lg ${jobType.color}`} />
+                                    </div>
+                                    <div>
+                                      <h3 className="font-bold text-gray-900 group-hover:text-green-700 transition-colors">
+                                        {job.title}
+                                      </h3>
+                                      <div className="flex flex-wrap items-center gap-2 mt-2">
+                                        <div className="flex items-center gap-1 text-sm text-gray-600">
+                                          <FaBuilding />
+                                          <span>{job.company}</span>
+                                        </div>
+                                        <div className="flex items-center gap-1 text-sm text-gray-600">
+                                          <FaMapMarkerAlt />
+                                          <span>{job.location}</span>
+                                        </div>
+                                      </div>
+                                      <div className="mt-3 flex flex-wrap items-center gap-2">
+                                        <span className={`px-3 py-1 rounded-full text-xs font-bold ${jobType.bg} ${jobType.color}`}>
+                                          {job.type}
+                                        </span>
+                                        <span className="px-3 py-1 rounded-full text-xs font-bold bg-green-100 text-green-700">
+                                          <FaMoneyBillWave className="inline mr-1" />
+                                          {formatCurrency(job.salary, job.salary_currency)}
+                                        </span>
+                                      </div>
+                                    </div>
+                                  </div>
+                                </div>
+                                <div className="flex items-start gap-2">
+                                  {job.url && (
+                                    <a
+                                      href={job.url}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="p-2 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded-lg transition-all duration-300"
+                                      title="View Job"
+                                    >
+                                      <FaExternalLinkAlt size={16} />
+                                    </a>
+                                  )}
+                                  <button
+                                    onClick={() => {
+                                      setSelectedJob(job);
+                                      setShowJobModal(true);
+                                    }}
+                                    className="p-2 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded-lg transition-all duration-300"
+                                    title="View Details"
+                                  >
+                                    <FaEye size={16} />
+                                  </button>
+                                  <button
+                                    onClick={() => {
+                                      setCurrentJob(job);
+                                      setIsEditingJob(true);
+                                      setJobForm({
+                                        title: job.title,
+                                        company: job.company,
+                                        type: job.type,
+                                        location: job.location,
+                                        salary: job.salary?.toString() || '',
+                                        salary_currency: job.salary_currency || 'NGN',
+                                        description: job.description,
+                                        requirements: job.requirements?.split(',').join('\n') || '',
+                                        url: job.url || ''
+                                      });
+                                    }}
+                                    className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all duration-300"
+                                    title="Edit"
+                                  >
+                                    <FaEdit size={16} />
+                                  </button>
+                                  <button
+                                    onClick={() => handleDeleteJob(job.id)}
+                                    className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all duration-300"
+                                    title="Delete"
+                                  >
+                                    <FaTrash size={16} />
+                                  </button>
                                 </div>
                               </div>
-                              <div className="flex space-x-2">
-                                {job.url && (
-                                  <a
-                                    href={job.url}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="text-gray-500 hover:text-green-600 p-1"
-                                    title="View More"
-                                  >
-                                    <FaLink size={14} />
-                                  </a>
-                                )}
-                                <button
-                                  onClick={() => {
-                                    setSelectedJob(job);
-                                    setShowJobModal(true);
-                                  }}
-                                  className="text-gray-500 hover:text-green-600 p-1"
-                                  title="View Details"
-                                >
-                                  <FaEye size={14} />
-                                </button>
-                                <button
-                                  onClick={() => {
-                                    setCurrentJob(job);
-                                    setIsEditingJob(true);
-                                    setJobForm({
-                                      title: job.title,
-                                      company: job.company,
-                                      type: job.type,
-                                      location: job.location,
-                                      salary: job.salary,
-                                      salary_currency: job.salary_currency || 'NGN',
-                                      description: job.description,
-                                      requirements: job.requirements?.split(',').join('\n') || '',
-                                      url: job.url || ''
-                                    });
-                                  }}
-                                  className="text-gray-500 hover:text-blue-600 p-1"
-                                  title="Edit"
-                                >
-                                  <FaEdit size={14} />
-                                </button>
-                                <button
-                                  onClick={() => handleDeleteJob(job.id)}
-                                  className="text-gray-500 hover:text-red-600 p-1"
-                                  title="Delete"
-                                >
-                                  <FaTrash size={14} />
-                                </button>
-                              </div>
                             </div>
-                          </div>
-                        ))}
+                          );
+                        })}
                       </div>
                     )}
                   </div>
                 </div>
               </div>
             ) : (
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                 {/* Scholarship Form */}
                 <div className="lg:col-span-1">
-                  <div className="bg-green-50 p-4 rounded-lg border border-green-200">
-                    <h2 className="text-lg font-semibold mb-3">
-                      {isEditingScholarship ? 'Edit Scholarship' : 'Create New Scholarship'}
-                    </h2>
-                    <form onSubmit={handleScholarshipSubmit} className="space-y-3">
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Scholarship Name</label>
+                  <div className="bg-gradient-to-br from-gray-50 to-white rounded-2xl border border-gray-200 p-6 shadow-sm">
+                    <div className="flex items-center justify-between mb-6">
+                      <h2 className="text-xl font-bold text-gray-900">
+                        {isEditingScholarship ? 'Edit Scholarship' : 'Create New Scholarship'}
+                      </h2>
+                      <div className="p-2 bg-emerald-100 rounded-lg">
+                        <FaGraduationCap className="text-emerald-600" />
+                      </div>
+                    </div>
+                    
+                    <form onSubmit={handleScholarshipSubmit} className="space-y-4">
+                      <div className="space-y-1">
+                        <label className="block text-sm font-medium text-gray-700">Scholarship Name *</label>
                         <input
                           type="text"
                           name="name"
                           value={scholarshipForm.name}
                           onChange={(e) => setScholarshipForm({...scholarshipForm, name: e.target.value})}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-green-500 focus:border-green-500"
+                          className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:border-green-500 focus:ring-2 focus:ring-green-100 transition-all duration-300"
+                          placeholder="Merit Scholarship for STEM"
                           required
                         />
                       </div>
 
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Provider</label>
+                      <div className="space-y-1">
+                        <label className="block text-sm font-medium text-gray-700">Provider *</label>
                         <input
                           type="text"
                           name="provider"
                           value={scholarshipForm.provider}
                           onChange={(e) => setScholarshipForm({...scholarshipForm, provider: e.target.value})}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-green-500 focus:border-green-500"
+                          className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:border-green-500 focus:ring-2 focus:ring-green-100 transition-all duration-300"
+                          placeholder="Organization Name"
                           required
                         />
                       </div>
 
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Scholarship Type</label>
-                        <select
-                          name="type"
-                          value={scholarshipForm.type}
-                          onChange={(e) => setScholarshipForm({...scholarshipForm, type: e.target.value})}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-green-500 focus:border-green-500"
-                          required
-                        >
-                          <option value="Merit-Based">Merit-Based</option>
-                          <option value="Need-Based">Need-Based</option>
-                          <option value="Athletic">Athletic</option>
-                          <option value="Minority">Minority</option>
-                        </select>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-1">
+                          <label className="block text-sm font-medium text-gray-700">Type *</label>
+                          <select
+                            name="type"
+                            value={scholarshipForm.type}
+                            onChange={(e) => setScholarshipForm({...scholarshipForm, type: e.target.value})}
+                            className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:border-green-500 focus:ring-2 focus:ring-green-100 transition-all duration-300"
+                            required
+                          >
+                            {scholarshipTypeOptions.map(type => (
+                              <option key={type.id} value={type.id}>{type.name}</option>
+                            ))}
+                          </select>
+                        </div>
+
+                        <div className="space-y-1">
+                          <label className="block text-sm font-medium text-gray-700">Field *</label>
+                          <select
+                            name="field"
+                            value={scholarshipForm.field}
+                            onChange={(e) => setScholarshipForm({...scholarshipForm, field: e.target.value})}
+                            className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:border-green-500 focus:ring-2 focus:ring-green-100 transition-all duration-300"
+                            required
+                          >
+                            {fieldOptions.map(field => (
+                              <option key={field.id} value={field.id}>{field.name}</option>
+                            ))}
+                          </select>
+                        </div>
                       </div>
 
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Field/Domain</label>
-                        <select
-                          name="field"
-                          value={scholarshipForm.field}
-                          onChange={(e) => setScholarshipForm({...scholarshipForm, field: e.target.value})}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-green-500 focus:border-green-500"
-                          required
-                        >
-                          {fieldOptions.map((field) => (
-                            <option key={field} value={field}>{field}</option>
-                          ))}
-                        </select>
-                      </div>
-
-                      <div className="grid grid-cols-2 gap-2">
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">Amount</label>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-1">
+                          <label className="block text-sm font-medium text-gray-700">Amount *</label>
                           <input
                             type="text"
                             name="amount"
                             value={scholarshipForm.amount}
                             onChange={(e) => setScholarshipForm({...scholarshipForm, amount: e.target.value})}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-green-500 focus:border-green-500"
+                            className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:border-green-500 focus:ring-2 focus:ring-green-100 transition-all duration-300"
+                            placeholder="50000"
                             required
                           />
                         </div>
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">Currency</label>
+                        <div className="space-y-1">
+                          <label className="block text-sm font-medium text-gray-700">Currency *</label>
                           <select
                             name="amount_currency"
                             value={scholarshipForm.amount_currency}
                             onChange={(e) => setScholarshipForm({...scholarshipForm, amount_currency: e.target.value})}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-green-500 focus:border-green-500"
+                            className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:border-green-500 focus:ring-2 focus:ring-green-100 transition-all duration-300"
                             required
                           >
                             {currencyOptions.map(currency => (
@@ -697,87 +951,101 @@ const AdminDashboard = () => {
                         </div>
                       </div>
 
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
-                        <select
-                          name="status"
-                          value={scholarshipForm.status}
-                          onChange={(e) => setScholarshipForm({...scholarshipForm, status: e.target.value})}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-green-500 focus:border-green-500"
-                          required
-                        >
-                          {statusOptions.map((status) => (
-                            <option key={status} value={status}>{status}</option>
-                          ))}
-                        </select>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-1">
+                          <label className="block text-sm font-medium text-gray-700">Status *</label>
+                          <select
+                            name="status"
+                            value={scholarshipForm.status}
+                            onChange={(e) => setScholarshipForm({...scholarshipForm, status: e.target.value})}
+                            className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:border-green-500 focus:ring-2 focus:ring-green-100 transition-all duration-300"
+                            required
+                          >
+                            {statusOptions.map((status) => (
+                              <option key={status} value={status}>{status}</option>
+                            ))}
+                          </select>
+                        </div>
+                        <div className="space-y-1">
+                          <label className="block text-sm font-medium text-gray-700">Deadline *</label>
+                          <div className="relative">
+                            <FaCalendarAlt className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400" />
+                            <input
+                              type="date"
+                              name="deadline"
+                              value={scholarshipForm.deadline}
+                              onChange={(e) => setScholarshipForm({...scholarshipForm, deadline: e.target.value})}
+                              className="w-full pl-12 pr-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:border-green-500 focus:ring-2 focus:ring-green-100 transition-all duration-300"
+                              required
+                            />
+                          </div>
+                        </div>
                       </div>
 
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Deadline</label>
+                      <div className="space-y-1">
+                        <label className="block text-sm font-medium text-gray-700">Scholarship URL</label>
                         <div className="relative">
-                          <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
-                            <FaCalendarAlt className="text-gray-400" />
-                          </div>
+                          <FaLink className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400" />
                           <input
-                            type="date"
-                            name="deadline"
-                            value={scholarshipForm.deadline}
-                            onChange={(e) => setScholarshipForm({...scholarshipForm, deadline: e.target.value})}
-                            className="w-full pl-10 px-3 py-2 border border-gray-300 rounded-md focus:ring-green-500 focus:border-green-500"
-                            required
+                            type="url"
+                            name="url"
+                            value={scholarshipForm.url}
+                            onChange={(e) => setScholarshipForm({...scholarshipForm, url: e.target.value})}
+                            className="w-full pl-12 pr-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:border-green-500 focus:ring-2 focus:ring-green-100 transition-all duration-300"
+                            placeholder="https://scholarship.com/apply"
                           />
                         </div>
                       </div>
 
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Scholarship URL</label>
-                        <input
-                          type="url"
-                          name="url"
-                          value={scholarshipForm.url}
-                          onChange={(e) => setScholarshipForm({...scholarshipForm, url: e.target.value})}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-green-500 focus:border-green-500"
-                          placeholder="https://example.com/scholarship"
-                        />
-                      </div>
-
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
+                      <div className="space-y-1">
+                        <label className="block text-sm font-medium text-gray-700">Description *</label>
                         <textarea
                           name="description"
                           value={scholarshipForm.description}
                           onChange={(e) => setScholarshipForm({...scholarshipForm, description: e.target.value})}
                           rows="4"
-                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-green-500 focus:border-green-500"
+                          className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:border-green-500 focus:ring-2 focus:ring-green-100 transition-all duration-300"
+                          placeholder="Describe the scholarship opportunity..."
                           required
                         />
                       </div>
 
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Eligibility Criteria</label>
+                      <div className="space-y-1">
+                        <label className="block text-sm font-medium text-gray-700">Eligibility Criteria *</label>
                         <textarea
                           name="eligibility"
                           value={scholarshipForm.eligibility}
                           onChange={(e) => setScholarshipForm({...scholarshipForm, eligibility: e.target.value})}
                           rows="4"
-                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-green-500 focus:border-green-500"
+                          className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:border-green-500 focus:ring-2 focus:ring-green-100 transition-all duration-300"
+                          placeholder="List eligibility requirements..."
                           required
                         />
                       </div>
 
-                      <div className="flex space-x-2 pt-2">
+                      <div className="flex gap-3 pt-4">
                         <button
                           type="submit"
                           disabled={isScholarshipLoading}
-                          className="flex-1 bg-green-600 hover:bg-green-700 text-white py-2 px-4 rounded-md disabled:opacity-50"
+                          className="flex-1 flex items-center justify-center gap-2 px-6 py-3 bg-gradient-to-r from-emerald-500 to-green-600 hover:from-emerald-600 hover:to-green-700 text-white font-semibold rounded-xl shadow-sm hover:shadow-md transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
                         >
-                          {isScholarshipLoading ? 'Saving...' : (isEditingScholarship ? 'Update' : 'Create')}
+                          {isScholarshipLoading ? (
+                            <>
+                              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                              {isEditingScholarship ? 'Updating...' : 'Creating...'}
+                            </>
+                          ) : (
+                            <>
+                              {isEditingScholarship ? <FaEdit /> : <FaPlus />}
+                              {isEditingScholarship ? 'Update Scholarship' : 'Create Scholarship'}
+                            </>
+                          )}
                         </button>
                         {isEditingScholarship && (
                           <button
                             type="button"
                             onClick={resetScholarshipForm}
-                            className="bg-gray-200 hover:bg-gray-300 text-gray-800 py-2 px-4 rounded-md"
+                            className="px-6 py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold rounded-xl transition-all duration-300"
                           >
                             Cancel
                           </button>
@@ -789,91 +1057,143 @@ const AdminDashboard = () => {
 
                 {/* Scholarships List */}
                 <div className="lg:col-span-2">
-                  <div className="bg-green-50 p-4 rounded-lg border border-green-200">
-                    <h2 className="text-lg font-semibold mb-3">Posted Scholarships</h2>
+                  <div className="bg-gradient-to-br from-gray-50 to-white rounded-2xl border border-gray-200 p-6 shadow-sm">
+                    <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
+                      <div>
+                        <h2 className="text-xl font-bold text-gray-900">Posted Scholarships</h2>
+                        <p className="text-gray-600 mt-1">{filteredScholarships.length} scholarship{filteredScholarships.length !== 1 ? 's' : ''} found</p>
+                      </div>
+                      <div className="relative w-full sm:w-auto">
+                        <FaSearch className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400" />
+                        <input
+                          type="text"
+                          placeholder="Search scholarships..."
+                          value={scholarshipSearch}
+                          onChange={(e) => setScholarshipSearch(e.target.value)}
+                          className="w-full sm:w-64 pl-12 pr-4 py-2.5 border-2 border-gray-200 rounded-xl focus:outline-none focus:border-green-500 focus:ring-2 focus:ring-green-100 transition-all duration-300"
+                        />
+                      </div>
+                    </div>
                     
-                    {isScholarshipLoading && scholarships.length === 0 ? (
-                      <p>Loading scholarships...</p>
-                    ) : scholarships.length === 0 ? (
-                      <p>No scholarships posted yet.</p>
+                    {isScholarshipLoading && filteredScholarships.length === 0 ? (
+                      <div className="text-center py-12">
+                        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-green-500 mx-auto mb-4"></div>
+                        <p className="text-gray-600">Loading scholarships...</p>
+                      </div>
+                    ) : filteredScholarships.length === 0 ? (
+                      <div className="text-center py-12">
+                        <div className="mx-auto w-20 h-20 bg-gradient-to-r from-emerald-100 to-green-100 rounded-full flex items-center justify-center mb-4">
+                          <FaGraduationCap className="text-emerald-400 text-2xl" />
+                        </div>
+                        <h3 className="text-lg font-bold text-gray-800 mb-2">No scholarships found</h3>
+                        <p className="text-gray-600">
+                          {scholarshipSearch ? 'Try adjusting your search terms' : 'Create your first scholarship!'}
+                        </p>
+                      </div>
                     ) : (
-                      <div className="space-y-3">
-                        {scholarships.map(scholarship => (
-                          <div key={scholarship.id} className="p-3 bg-white rounded-md border border-gray-200 hover:shadow-sm">
-                            <div className="flex justify-between">
-                              <div className="flex-1">
-                                <h3 className="font-medium text-green-800">{scholarship.name}</h3>
-                                <p className="text-sm text-gray-600">{scholarship.provider}</p>
-                                <div className="mt-2 flex flex-wrap items-center gap-2">
-                                  <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                                    {scholarship.field}
-                                  </span>
-                                  <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
-                                    {formatCurrency(scholarship.amount, scholarship.amount_currency)}
-                                  </span>
-                                  {renderStatusBadge(scholarship.status)}
+                      <div className="space-y-4 max-h-[600px] overflow-y-auto pr-2">
+                        {filteredScholarships.map(scholarship => {
+                          const scholarshipType = scholarshipTypeOptions.find(t => t.id === scholarship.type) || scholarshipTypeOptions[0];
+                          const ScholarshipTypeIcon = scholarshipType.icon;
+                          const field = fieldOptions.find(f => f.id === scholarship.field) || fieldOptions[0];
+                          const FieldIcon = field.icon;
+                          
+                          return (
+                            <div key={scholarship.id} className="bg-white border-2 border-gray-100 rounded-xl p-5 hover:border-emerald-200 hover:shadow-md transition-all duration-300 group">
+                              <div className="flex flex-col sm:flex-row justify-between gap-4">
+                                <div className="flex-1">
+                                  <div className="flex items-start gap-3 mb-3">
+                                    <div className={`p-2.5 rounded-lg ${scholarshipType.bg}`}>
+                                      <ScholarshipTypeIcon className={`text-lg ${scholarshipType.color}`} />
+                                    </div>
+                                    <div>
+                                      <h3 className="font-bold text-gray-900 group-hover:text-emerald-700 transition-colors">
+                                        {scholarship.name}
+                                      </h3>
+                                      <div className="flex items-center gap-2 mt-2">
+                                        <div className="flex items-center gap-1 text-sm text-gray-600">
+                                          <FaBuilding />
+                                          <span>{scholarship.provider}</span>
+                                        </div>
+                                      </div>
+                                      <div className="mt-3 flex flex-wrap items-center gap-2">
+                                        <span className={`px-3 py-1 rounded-full text-xs font-bold ${field.bg} ${field.color}`}>
+                                          <FieldIcon className="inline mr-1" />
+                                          {scholarship.field}
+                                        </span>
+                                        <span className={`px-3 py-1 rounded-full text-xs font-bold ${scholarshipType.bg} ${scholarshipType.color}`}>
+                                          {scholarship.type}
+                                        </span>
+                                        {renderStatusBadge(scholarship.status)}
+                                        <span className="px-3 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-700">
+                                          <FaMoneyBillWave className="inline mr-1" />
+                                          {formatCurrency(scholarship.amount, scholarship.amount_currency)}
+                                        </span>
+                                      </div>
+                                      <div className="mt-3 flex items-center gap-1 text-sm text-gray-600">
+                                        <FaCalendarAlt />
+                                        <span>Deadline: {formatDate(scholarship.deadline)}</span>
+                                      </div>
+                                    </div>
+                                  </div>
                                 </div>
-                                <div className="mt-2 flex items-center text-sm text-gray-500">
-                                  <FaCalendarAlt className="mr-1" />
-                                  Deadline: {new Date(scholarship.deadline).toLocaleDateString()}
-                                </div>
-                              </div>
-                              <div className="flex space-x-2">
-                                {scholarship.url && (
-                                  <a
-                                    href={scholarship.url}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="text-gray-500 hover:text-green-600 p-1"
-                                    title="View More"
+                                <div className="flex items-start gap-2">
+                                  {scholarship.url && (
+                                    <a
+                                      href={scholarship.url}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="p-2 text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-all duration-300"
+                                      title="View Scholarship"
+                                    >
+                                      <FaExternalLinkAlt size={16} />
+                                    </a>
+                                  )}
+                                  <button
+                                    onClick={() => {
+                                      setSelectedScholarship(scholarship);
+                                      setShowScholarshipModal(true);
+                                    }}
+                                    className="p-2 text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-all duration-300"
+                                    title="View Details"
                                   >
-                                    <FaLink size={14} />
-                                  </a>
-                                )}
-                                <button
-                                  onClick={() => {
-                                    setSelectedScholarship(scholarship);
-                                    setShowScholarshipModal(true);
-                                  }}
-                                  className="text-gray-500 hover:text-green-600 p-1"
-                                  title="View Details"
-                                >
-                                  <FaEye size={14} />
-                                </button>
-                                <button
-                                  onClick={() => {
-                                    setCurrentScholarship(scholarship);
-                                    setIsEditingScholarship(true);
-                                    setScholarshipForm({
-                                      name: scholarship.name,
-                                      provider: scholarship.provider,
-                                      type: scholarship.type || 'Merit-Based',
-                                      field: scholarship.field,
-                                      amount: scholarship.amount,
-                                      amount_currency: scholarship.amount_currency || 'NGN',
-                                      status: scholarship.status,
-                                      deadline: scholarship.deadline,
-                                      description: scholarship.description,
-                                      eligibility: scholarship.eligibility,
-                                      url: scholarship.url || ''
-                                    });
-                                  }}
-                                  className="text-gray-500 hover:text-blue-600 p-1"
-                                  title="Edit"
-                                >
-                                  <FaEdit size={14} />
-                                </button>
-                                <button
-                                  onClick={() => handleDeleteScholarship(scholarship.id)}
-                                  className="text-gray-500 hover:text-red-600 p-1"
-                                  title="Delete"
-                                >
-                                  <FaTrash size={14} />
-                                </button>
+                                    <FaEye size={16} />
+                                  </button>
+                                  <button
+                                    onClick={() => {
+                                      setCurrentScholarship(scholarship);
+                                      setIsEditingScholarship(true);
+                                      setScholarshipForm({
+                                        name: scholarship.name,
+                                        provider: scholarship.provider,
+                                        type: scholarship.type || 'Merit-Based',
+                                        field: scholarship.field,
+                                        amount: scholarship.amount?.toString() || '',
+                                        amount_currency: scholarship.amount_currency || 'NGN',
+                                        status: scholarship.status,
+                                        deadline: scholarship.deadline,
+                                        description: scholarship.description,
+                                        eligibility: scholarship.eligibility,
+                                        url: scholarship.url || ''
+                                      });
+                                    }}
+                                    className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all duration-300"
+                                    title="Edit"
+                                  >
+                                    <FaEdit size={16} />
+                                  </button>
+                                  <button
+                                    onClick={() => handleDeleteScholarship(scholarship.id)}
+                                    className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all duration-300"
+                                    title="Delete"
+                                  >
+                                    <FaTrash size={16} />
+                                  </button>
+                                </div>
                               </div>
                             </div>
-                          </div>
-                        ))}
+                          );
+                        })}
                       </div>
                     )}
                   </div>
@@ -887,78 +1207,91 @@ const AdminDashboard = () => {
       {/* Job Details Modal */}
       {showJobModal && selectedJob && (
         <div className="fixed z-50 inset-0 overflow-y-auto">
-          <div className="flex items-center justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
+          <div className="flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:block sm:p-0">
             <div className="fixed inset-0 transition-opacity" aria-hidden="true">
-              <div className="absolute inset-0 bg-gray-500 opacity-75" onClick={() => setShowJobModal(false)}></div>
+              <div className="absolute inset-0 bg-gray-900 opacity-75" onClick={() => setShowJobModal(false)}></div>
             </div>
             <span className="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
-            <div className="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-2xl sm:w-full">
-              <div className="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
-                <div className="sm:flex sm:items-start">
-                  <div className="mt-3 text-center sm:mt-0 sm:ml-4 sm:text-left w-full">
-                    <div className="flex justify-between items-start">
-                      <h3 className="text-lg leading-6 font-medium text-gray-900">
-                        {selectedJob.title}
-                      </h3>
-                      <button
-                        onClick={() => setShowJobModal(false)}
-                        className="text-gray-400 hover:text-gray-500"
-                      >
-                        <FaTimes />
-                      </button>
-                    </div>
-                    <div className="mt-2">
-                      <p className="text-sm text-gray-500">
-                        <FaBuilding className="inline mr-1" /> {selectedJob.company}
-                      </p>
-                      <p className="text-sm text-gray-500">
-                        <FaMapMarkerAlt className="inline mr-1" /> {selectedJob.location}
-                      </p>
-                      <p className="text-sm text-gray-500">
-                        <FaMoneyBillWave className="inline mr-1" /> {formatCurrency(selectedJob.salary, selectedJob.salary_currency)}
-                      </p>
-                      {selectedJob.url && (
-                        <p className="text-sm text-gray-500">
-                          <FaLink className="inline mr-1" /> 
-                          <a href={selectedJob.url} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">
-                            View Job Posting
-                          </a>
-                        </p>
-                      )}
-                      <span className={`inline-block mt-1 px-2 py-1 text-xs rounded ${
-                        selectedJob.type === 'Full-time' ? 'bg-green-100 text-green-800' :
-                        selectedJob.type === 'Part-time' ? 'bg-yellow-100 text-yellow-800' :
-                        selectedJob.type === 'Internship' ? 'bg-blue-100 text-blue-800' :
-                        'bg-gray-100 text-gray-800'
-                      }`}>
-                        {selectedJob.type}
-                      </span>
-                    </div>
-                    <div className="mt-4">
-                      <h4 className="font-medium text-gray-900">Job Description</h4>
-                      <div className="mt-2 text-sm text-gray-700 whitespace-pre-line">
-                        {selectedJob.description}
+            <div className="inline-block align-bottom bg-white rounded-2xl text-left overflow-hidden shadow-2xl transform transition-all sm:my-8 sm:align-middle sm:max-w-2xl sm:w-full">
+              <div className="bg-white px-6 pt-6 pb-4">
+                <div className="flex justify-between items-start mb-6">
+                  <div>
+                    <h3 className="text-2xl font-bold text-gray-900">{selectedJob.title}</h3>
+                    <div className="flex items-center gap-3 mt-2">
+                      <div className="flex items-center gap-1 text-gray-600">
+                        <FaBuilding />
+                        <span className="font-medium">{selectedJob.company}</span>
+                      </div>
+                      <div className="flex items-center gap-1 text-gray-600">
+                        <FaMapMarkerAlt />
+                        <span>{selectedJob.location}</span>
                       </div>
                     </div>
-                    <div className="mt-4">
-                      <h4 className="font-medium text-gray-900">Requirements</h4>
-                      <ul className="mt-2 text-sm text-gray-700 list-disc pl-5">
-                        {selectedJob.requirements?.split(',').map((req, i) => (
-                          <li key={i}>{req.trim()}</li>
+                  </div>
+                  <button
+                    onClick={() => setShowJobModal(false)}
+                    className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-xl transition-colors"
+                  >
+                    <FaTimes size={20} />
+                  </button>
+                </div>
+                
+                <div className="space-y-6">
+                  <div className="flex flex-wrap gap-3">
+                    {jobTypeOptions.find(t => t.id === selectedJob.type) && (
+                      <span className={`px-3 py-1.5 rounded-full text-sm font-bold ${jobTypeOptions.find(t => t.id === selectedJob.type).bg} ${jobTypeOptions.find(t => t.id === selectedJob.type).color}`}>
+                        {selectedJob.type}
+                      </span>
+                    )}
+                    <span className="px-3 py-1.5 rounded-full text-sm font-bold bg-green-100 text-green-700">
+                      <FaMoneyBillWave className="inline mr-1" />
+                      {formatCurrency(selectedJob.salary, selectedJob.salary_currency)}
+                    </span>
+                    {selectedJob.url && (
+                      <a
+                        href={selectedJob.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="px-3 py-1.5 rounded-full text-sm font-bold bg-blue-100 text-blue-700 hover:bg-blue-200 transition-colors"
+                      >
+                        <FaExternalLinkAlt className="inline mr-1" />
+                        View Job
+                      </a>
+                    )}
+                  </div>
+
+                  <div>
+                    <h4 className="text-lg font-semibold text-gray-900 mb-3">Job Description</h4>
+                    <div className="text-gray-700 whitespace-pre-line bg-gray-50 rounded-xl p-4">
+                      {selectedJob.description}
+                    </div>
+                  </div>
+
+                  {selectedJob.requirements && (
+                    <div>
+                      <h4 className="text-lg font-semibold text-gray-900 mb-3">Requirements</h4>
+                      <ul className="space-y-2">
+                        {selectedJob.requirements.split(',').map((req, i) => (
+                          <li key={i} className="flex items-start gap-2 text-gray-700">
+                            <span className="text-green-500 mt-1">•</span>
+                            <span>{req.trim()}</span>
+                          </li>
                         ))}
                       </ul>
                     </div>
-                  </div>
+                  )}
                 </div>
               </div>
-              <div className="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
-                <button
-                  type="button"
-                  className="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-green-600 text-base font-medium text-white hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm"
-                  onClick={() => setShowJobModal(false)}
-                >
-                  Close
-                </button>
+              <div className="bg-gray-50 px-6 py-4 rounded-b-2xl">
+                <div className="flex justify-end">
+                  <button
+                    type="button"
+                    className="px-6 py-2.5 bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white font-semibold rounded-xl transition-all duration-300"
+                    onClick={() => setShowJobModal(false)}
+                  >
+                    Close
+                  </button>
+                </div>
               </div>
             </div>
           </div>
@@ -968,84 +1301,98 @@ const AdminDashboard = () => {
       {/* Scholarship Details Modal */}
       {showScholarshipModal && selectedScholarship && (
         <div className="fixed z-50 inset-0 overflow-y-auto">
-          <div className="flex items-center justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
+          <div className="flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:block sm:p-0">
             <div className="fixed inset-0 transition-opacity" aria-hidden="true">
-              <div className="absolute inset-0 bg-gray-500 opacity-75" onClick={() => setShowScholarshipModal(false)}></div>
+              <div className="absolute inset-0 bg-gray-900 opacity-75" onClick={() => setShowScholarshipModal(false)}></div>
             </div>
             <span className="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
-            <div className="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-2xl sm:w-full">
-              <div className="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
-                <div className="sm:flex sm:items-start">
-                  <div className="mt-3 text-center sm:mt-0 sm:ml-4 sm:text-left w-full">
-                    <div className="flex justify-between items-start">
-                      <h3 className="text-lg leading-6 font-medium text-gray-900">
-                        {selectedScholarship.name}
-                      </h3>
-                      <button
-                        onClick={() => setShowScholarshipModal(false)}
-                        className="text-gray-400 hover:text-gray-500"
-                      >
-                        <FaTimes />
-                      </button>
-                    </div>
-                    <div className="mt-2">
-                      <p className="text-sm text-gray-500">
-                        <FaBuilding className="inline mr-1" /> {selectedScholarship.provider}
-                      </p>
-                      <div className="mt-2 flex flex-wrap items-center gap-2">
-                        <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                          {selectedScholarship.field}
-                        </span>
-                        <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
-                          {formatCurrency(selectedScholarship.amount, selectedScholarship.amount_currency)}
-                        </span>
-                        {renderStatusBadge(selectedScholarship.status)}
-                      </div>
-                      <p className="text-sm text-gray-500 mt-2">
-                        <FaCalendarAlt className="inline mr-1" /> Deadline: {new Date(selectedScholarship.deadline).toLocaleDateString()}
-                      </p>
-                      {selectedScholarship.url && (
-                        <p className="text-sm text-gray-500">
-                          <FaLink className="inline mr-1" /> 
-                          <a href={selectedScholarship.url} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">
-                            View Scholarship Details
-                          </a>
-                        </p>
-                      )}
-                    </div>
-                    <div className="mt-4">
-                      <h4 className="font-medium text-gray-900">Description</h4>
-                      <div className="mt-2 text-sm text-gray-700 whitespace-pre-line">
-                        {selectedScholarship.description}
-                      </div>
-                    </div>
-                    <div className="mt-4">
-                      <h4 className="font-medium text-gray-900">Eligibility Criteria</h4>
-                      <div className="mt-2 text-sm text-gray-700 whitespace-pre-line">
-                        {selectedScholarship.eligibility}
+            <div className="inline-block align-bottom bg-white rounded-2xl text-left overflow-hidden shadow-2xl transform transition-all sm:my-8 sm:align-middle sm:max-w-2xl sm:w-full">
+              <div className="bg-white px-6 pt-6 pb-4">
+                <div className="flex justify-between items-start mb-6">
+                  <div>
+                    <h3 className="text-2xl font-bold text-gray-900">{selectedScholarship.name}</h3>
+                    <div className="flex items-center gap-3 mt-2">
+                      <div className="flex items-center gap-1 text-gray-600">
+                        <FaBuilding />
+                        <span className="font-medium">{selectedScholarship.provider}</span>
                       </div>
                     </div>
                   </div>
+                  <button
+                    onClick={() => setShowScholarshipModal(false)}
+                    className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-xl transition-colors"
+                  >
+                    <FaTimes size={20} />
+                  </button>
+                </div>
+                
+                <div className="space-y-6">
+                  <div className="flex flex-wrap gap-3">
+                    {fieldOptions.find(f => f.id === selectedScholarship.field) && (
+                      <span className={`px-3 py-1.5 rounded-full text-sm font-bold ${fieldOptions.find(f => f.id === selectedScholarship.field).bg} ${fieldOptions.find(f => f.id === selectedScholarship.field).color}`}>
+                        <FieldIcon className="inline mr-1" />
+                        {selectedScholarship.field}
+                      </span>
+                    )}
+                    {renderStatusBadge(selectedScholarship.status)}
+                    <span className="px-3 py-1.5 rounded-full text-sm font-bold bg-emerald-100 text-emerald-700">
+                      <FaMoneyBillWave className="inline mr-1" />
+                      {formatCurrency(selectedScholarship.amount, selectedScholarship.amount_currency)}
+                    </span>
+                    <span className="px-3 py-1.5 rounded-full text-sm font-bold bg-blue-100 text-blue-700">
+                      <FaCalendarAlt className="inline mr-1" />
+                      {formatDate(selectedScholarship.deadline)}
+                    </span>
+                    {selectedScholarship.url && (
+                      <a
+                        href={selectedScholarship.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="px-3 py-1.5 rounded-full text-sm font-bold bg-purple-100 text-purple-700 hover:bg-purple-200 transition-colors"
+                      >
+                        <FaExternalLinkAlt className="inline mr-1" />
+                        Apply Now
+                      </a>
+                    )}
+                  </div>
+
+                  <div>
+                    <h4 className="text-lg font-semibold text-gray-900 mb-3">Description</h4>
+                    <div className="text-gray-700 whitespace-pre-line bg-gray-50 rounded-xl p-4">
+                      {selectedScholarship.description}
+                    </div>
+                  </div>
+
+                  {selectedScholarship.eligibility && (
+                    <div>
+                      <h4 className="text-lg font-semibold text-gray-900 mb-3">Eligibility Criteria</h4>
+                      <div className="text-gray-700 whitespace-pre-line bg-gray-50 rounded-xl p-4">
+                        {selectedScholarship.eligibility}
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
-              <div className="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
-                {selectedScholarship.url && (
-                  <a
-                    href={selectedScholarship.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500"
+              <div className="bg-gray-50 px-6 py-4 rounded-b-2xl">
+                <div className="flex justify-end gap-3">
+                  {selectedScholarship.url && (
+                    <a
+                      href={selectedScholarship.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="px-6 py-2.5 bg-gradient-to-r from-emerald-500 to-green-600 hover:from-emerald-600 hover:to-green-700 text-white font-semibold rounded-xl transition-all duration-300"
+                    >
+                      Apply Now
+                    </a>
+                  )}
+                  <button
+                    type="button"
+                    className="px-6 py-2.5 bg-gray-200 hover:bg-gray-300 text-gray-700 font-semibold rounded-xl transition-all duration-300"
+                    onClick={() => setShowScholarshipModal(false)}
                   >
-                    Apply Now
-                  </a>
-                )}
-                <button
-                  type="button"
-                  className="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm"
-                  onClick={() => setShowScholarshipModal(false)}
-                >
-                  Close
-                </button>
+                    Close
+                  </button>
+                </div>
               </div>
             </div>
           </div>
