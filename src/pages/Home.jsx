@@ -1,10 +1,94 @@
+import { useState } from 'react';
 import { Link } from "react-router-dom";
-import { FaUsers, FaBook, FaBriefcase, FaArrowRight, FaPlay, FaQuoteLeft, FaStar, FaQuestionCircle, FaSearch, FaUpload } from "react-icons/fa";
+import { FaUsers, FaBook, FaBriefcase, FaArrowRight, FaPlay, FaQuoteLeft, FaStar, FaQuestionCircle, FaSearch, FaUpload, FaCommentDots, FaCheckCircle, FaTimes } from "react-icons/fa";
 import Navbar from "../components/Navbar";
 import Footer from "../components/Footer";
-import Button from "../components/Button";  
+import { supabase } from "../lib/supabase";
 
 function Home() {
+  // Feedback state management (from Jobs page)
+  const [feedbackData, setFeedbackData] = useState({
+    name: '',
+    email: '',
+    type: 'General Feedback',
+    message: ''
+  });
+  
+  const [isSubmittingFeedback, setIsSubmittingFeedback] = useState(false);
+  const [feedbackStatus, setFeedbackStatus] = useState({ type: '', message: '' });
+
+  // Handle feedback input changes
+  const handleFeedbackInputChange = (e) => {
+    const { name, value } = e.target;
+    setFeedbackData(prev => ({
+      ...prev,
+      [name]: value
+    }));
+  };
+
+  // Handle feedback submission (using Supabase from Jobs page)
+  const handleFeedbackSubmit = async (e) => {
+    e.preventDefault();
+    
+    // Basic validation
+    if (!feedbackData.message.trim()) {
+      setFeedbackStatus({
+        type: 'error',
+        message: 'Please enter your feedback message'
+      });
+      return;
+    }
+
+    setIsSubmittingFeedback(true);
+    setFeedbackStatus({ type: '', message: '' });
+
+    try {
+      const { data, error } = await supabase
+        .from('feedback')
+        .insert([
+          {
+            name: feedbackData.name || null,
+            email: feedbackData.email || null,
+            type: feedbackData.type,
+            message: feedbackData.message,
+            created_at: new Date().toISOString(),
+            page_source: 'home_page' // Added to track where feedback came from
+          }
+        ])
+        .select();
+
+      if (error) throw error;
+
+      // Success
+      setFeedbackStatus({
+        type: 'success',
+        message: 'Thank you for your feedback! We appreciate your input.'
+      });
+      
+      // Reset form
+      setFeedbackData({
+        name: '',
+        email: '',
+        type: 'General Feedback',
+        message: ''
+      });
+
+      // Clear success message after 5 seconds
+      setTimeout(() => {
+        setFeedbackStatus({ type: '', message: '' });
+      }, 5000);
+
+    } catch (error) {
+      console.error('Error submitting feedback:', error);
+      setFeedbackStatus({
+        type: 'error',
+        message: 'Failed to submit feedback. Please try again.'
+      });
+    } finally {
+      setIsSubmittingFeedback(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-white">
       <Navbar />
@@ -170,7 +254,7 @@ function Home() {
                 placeholder="Search for resources, jobs, internships..." 
                 className="flex-grow px-6 py-4 border border-gray-300 rounded-full focus:outline-none focus:ring-2 focus:ring-green-500"
               />
-              <button className="bg-green-600 hover:bg-green-700 text-white px-8 py-4 rounded-full font-semibold transition-all duration-300 flex items-center justify-center">
+              <button className="bg-green-600 hover:bg-green-700 text-white px-8 py-4 rounded-full font-semibold transition-all duration-300 flex items-center justify-center cursor-pointer">
                 <FaSearch className="mr-2" /> Search
               </button>
             </div>
@@ -272,6 +356,138 @@ function Home() {
                 <p className="text-gray-600">{faq.answer}</p>
               </div>
             ))}
+          </div>
+        </div>
+      </section>
+
+      {/* Feedback Section - Now Functional with Supabase */}
+      <section className="py-24 bg-gray-100">
+        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="bg-white p-10 rounded-3xl shadow-xl border border-gray-200">
+            
+            <div className="text-center mb-10">
+              <FaCommentDots className="text-4xl text-green-600 mx-auto mb-4" />
+              <h2 className="text-3xl font-extrabold text-black mb-4">
+                We'd Love Your Feedback
+              </h2>
+              <p className="text-gray-600 max-w-2xl mx-auto">
+                Help us improve CampuusX by sharing your experience, suggestions, or reporting issues.
+              </p>
+            </div>
+
+            <form onSubmit={handleFeedbackSubmit} className="space-y-6">
+              {/* Name */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Name (optional)
+                </label>
+                <input
+                  type="text"
+                  name="name"
+                  value={feedbackData.name}
+                  onChange={handleFeedbackInputChange}
+                  placeholder="Your name"
+                  className="w-full px-5 py-4 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-all duration-300"
+                  disabled={isSubmittingFeedback}
+                />
+              </div>
+
+              {/* Email */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Email (optional)
+                </label>
+                <input
+                  type="email"
+                  name="email"
+                  value={feedbackData.email}
+                  onChange={handleFeedbackInputChange}
+                  placeholder="you@example.com"
+                  className="w-full px-5 py-4 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-all duration-300"
+                  disabled={isSubmittingFeedback}
+                />
+              </div>
+
+              {/* Feedback Type */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Feedback Type
+                </label>
+                <select
+                  name="type"
+                  value={feedbackData.type}
+                  onChange={handleFeedbackInputChange}
+                  className="w-full px-5 py-4 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-all duration-300 bg-white"
+                  disabled={isSubmittingFeedback}
+                >
+                  <option value="General Feedback">General Feedback</option>
+                  <option value="Feature Request">Feature Request</option>
+                  <option value="Bug Report">Bug Report</option>
+                  <option value="Content Issue">Content Issue</option>
+                  <option value="Other">Other</option>
+                </select>
+              </div>
+
+              {/* Message */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Your Message *
+                </label>
+                <textarea
+                  name="message"
+                  value={feedbackData.message}
+                  onChange={handleFeedbackInputChange}
+                  rows="5"
+                  placeholder="Tell us what you think..."
+                  className="w-full px-5 py-4 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-all duration-300 resize-none"
+                  disabled={isSubmittingFeedback}
+                  required
+                ></textarea>
+              </div>
+
+              {/* Submit */}
+              <div className="text-center pt-4">
+                <button
+                  type="submit"
+                  disabled={isSubmittingFeedback || !feedbackData.message.trim()}
+                  className="inline-flex items-center justify-center gap-2 bg-gradient-to-r from-green-600 to-green-800 hover:from-green-700 hover:to-green-900 text-white px-10 py-4 rounded-full font-semibold text-lg transition-all duration-300 hover:shadow-xl hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100 disabled:hover:shadow-none"
+                >
+                  {isSubmittingFeedback ? (
+                    <>
+                      <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
+                      Submitting...
+                    </>
+                  ) : (
+                    <>
+                      Submit Feedback
+                      <FaArrowRight />
+                    </>
+                  )}
+                </button>
+
+                     {/* Status Messages */}
+            {feedbackStatus.message && (
+              <div className={`mb-6 p-4 rounded-xl my-8 ${
+                feedbackStatus.type === 'success' 
+                  ? 'bg-green-50 border border-green-200 text-green-700' 
+                  : 'bg-red-50 border border-red-200 text-red-700'
+              }`}>
+                <div className="flex items-center">
+                  {feedbackStatus.type === 'success' ? (
+                    <FaCheckCircle className="mr-3 text-green-500" />
+                  ) : (
+                    <FaTimes className="mr-3 text-red-500" />
+                  )}
+                  <span>{feedbackStatus.message}</span>
+                </div>
+              </div>
+            )}
+              </div>
+            </form>
+
+            <p className="text-xs text-gray-400 text-center mt-6">
+              No login required. Your feedback helps improve the platform for everyone.
+            </p>
           </div>
         </div>
       </section>

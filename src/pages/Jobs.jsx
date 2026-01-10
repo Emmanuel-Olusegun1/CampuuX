@@ -703,7 +703,7 @@ function Jobs() {
                   )}
                   <Button
                     onClick={() => window.location.reload()}
-                    className="px-8 py-3 bg-gray-100 text-gray-700 hover:bg-gray-200 rounded-xl font-bold"
+                    className="px-8 py-3 bg-gray-100 text-gray-700 hover:bg-gray-200 rounded-xl font-bold cursor-pointer"
                   >
                     Refresh Jobs
                   </Button>
@@ -737,7 +737,7 @@ function Jobs() {
                     window.scrollTo({ top: 0, behavior: 'smooth' });
                     clearFilters();
                   }}
-                  className="inline-flex items-center justify-center gap-3 bg-transparent border-2 border-white text-white hover:bg-white hover:text-green-600 font-bold px-8 py-3.5 rounded-xl transition-all duration-300 transform hover:-translate-y-1 text-sm md:text-base"
+                  className="inline-flex items-center justify-center gap-3 bg-transparent border-2 border-white text-white hover:bg-white hover:text-green-600 font-bold px-8 py-3.5 rounded-xl transition-all duration-300 transform hover:-translate-y-1 text-sm md:text-base cursor-pointer"
                 >
                   <FaSearch />
                   <span>Search Again</span>

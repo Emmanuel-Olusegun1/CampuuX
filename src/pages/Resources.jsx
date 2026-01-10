@@ -425,7 +425,7 @@ function Resources() {
                     }}
                     className="px-8 py-4 bg-white text-emerald-600 hover:bg-emerald-50 font-bold rounded-xl shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 transition-all duration-300"
                   >
-                    <span className='flex items-center'>
+                    <span className='flex items-center cursor-pointer'>
                       <FaUpload className="mr-2" />
                       Share Resource
                     </span>
@@ -843,7 +843,7 @@ function Resources() {
                               Sharing...
                             </span>
                           ) : (
-                            <span className="flex items-center">
+                            <span className="flex items-center cursor-pointer">
                               <FaRocket className="mr-2" />
                               Share Resource
                             </span>
@@ -1026,7 +1026,7 @@ function Resources() {
                     }}
                     className="px-8 py-3 bg-gradient-to-r from-emerald-500 to-green-600 text-white hover:from-emerald-600 hover:to-green-700 rounded-xl font-bold"
                   >
-                    <span className="flex items-center">
+                    <span className="flex items-center cursor-pointer">
                       <FaUpload className="mr-2" />
                       Share Resource
                     </span>
